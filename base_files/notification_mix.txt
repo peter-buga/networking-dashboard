@@ -1,0 +1,139 @@
+{
+  "notif_hostname": "edge1",
+  "notif_msg": {
+    "push_level": "INFO",
+    "transaction": {
+      "add_ifaces": 10,
+      "add_objects": 3,
+      "add_streams": 3,
+      "committed": "edge1.ini"
+    }
+  },
+  "notif_seq": 0,
+  "notif_tstamp": 1744037778.721275
+}
+
+= = = = = 
+
+{
+  "notif_hostname": "edge1",
+  "notif_msg": {
+    "push_level": "INFO",
+    "r2dtwo": {
+      "status": "startup completed"
+    }
+  },
+  "notif_seq": 1,
+  "notif_tstamp": 1744037778.7405703
+}
+
+= = = = = 
+
+  ...
+  "c_edge1_tx": {
+    "mask_signal_state": "unmasked",
+    "name": "c_edge1_tx",
+    "oam_octets_passed": 248097,
+    "oam_packets_passed": 706,
+    "octets_passed": 460,
+    "packets_passed": 5,
+    "type": "mep_state"
+  },
+  ...
+    "path1_edge1_tx": {
+    "mask_signal_state": "unmasked",
+    "name": "path1_edge1_tx",
+    "oam_octets_passed": 0,
+    "oam_packets_passed": 0,
+    "octets_passed": 460,
+    "packets_passed": 5,
+    "type": "mep_state"
+  },
+  ...
+    "path2_edge1_tx": {
+    "mask_signal_state": "unmasked",
+    "name": "path2_edge1_tx",
+    "oam_octets_passed": 0,
+    "oam_packets_passed": 0,
+    "octets_passed": 460,
+    "packets_passed": 5,
+    "type": "mep_state"
+  },
+  ...
+  
+    "prf": {
+    "name": "prf",
+    "octets_passed": 1108592,
+    "packets_passed": 3135,
+    "pipelines": [
+      {
+        "action_count": 3,
+        "mask_state": "masked",
+        "name": "tx1"
+      },
+      {
+        "action_count": 3,
+        "mask_state": "unmasked",
+        "name": "tx2"
+      }
+    ],
+    "type": "replicate"
+  },
+
+= = = = =
+
+{
+  "notif_hostname": "edge1",
+  "notif_msg": {
+    "push_level": "INFO",
+    "triggered_source": {
+      "level": 3,
+      "mep": [
+        {
+          "mask_signal_state": "unmasked",
+          "name": "c_edge1_tx",
+          "oam_octets_passed": 364089,
+          "oam_packets_passed": 1036,
+          "octets_passed": 0,
+          "packets_passed": 0,
+          "type": "mep_state"
+        },
+        {
+          "mask_signal_state": "unmasked",
+          "name": "path1_edge1_tx",
+          "oam_octets_passed": 0,
+          "oam_packets_passed": 0,
+          "octets_passed": 0,
+          "packets_passed": 0,
+          "type": "mep_state"
+        },
+        {
+          "name": "prf",
+          "octets_passed": 364089,
+          "packets_passed": 1036,
+          "pipelines": [
+            {
+              "action_count": 3,
+              "mask_state": "unmasked",
+              "name": "tx1"
+            },
+            {
+              "action_count": 3,
+              "mask_state": "unmasked",
+              "name": "tx2"
+            }
+          ],
+          "type": "replicate"
+        }
+      ],
+      "node_id": 1,
+      "seq": 0,
+      "session": 2,
+      "source": "c_edge1_tx",
+      "stream": "stream_uni",
+      "target": "c_edge2_rx"
+    }
+  },
+  "notif_seq": 1407,
+  "notif_tstamp": 1744039850.6794293
+}

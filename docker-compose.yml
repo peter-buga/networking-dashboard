@@ -1,0 +1,64 @@
+services:
+  generator:
+    build:
+      context: ./services/generator
+    container_name: nd-generator
+    environment:
+      - METRICS_PORT=8000
+      - INTERVAL_SECONDS=1
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  topology:
+    build:
+      context: ./services/topology
+    container_name: nd-topology
+    environment:
+      - TOPOLOGY_PORT=8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./base_files:/app/base_files:ro
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nd-prometheus
+    volumes:
+      - ./databases/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - generator
+      - topology
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nd-grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - topology
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
