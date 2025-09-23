@@ -22,6 +22,20 @@ services:
       - ./base_files:/app/base_files:ro
     restart: unless-stopped
 
+  collector:
+    build:
+      context: ./services/collector
+    container_name: nd-collector
+    environment:
+      - UDP_PORT=6000
+      - UDP_HOST=0.0.0.0
+      - METRICS_PORT=8002
+      - LOG_LEVEL=INFO
+    ports:
+      - "6000:6000/udp"
+      - "8002:8002"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:latest
     container_name: nd-prometheus
@@ -37,6 +51,7 @@ services:
     depends_on:
       - generator
       - topology
+      - collector
     restart: unless-stopped
 
   grafana:
