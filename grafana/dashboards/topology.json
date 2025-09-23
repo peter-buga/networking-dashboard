@@ -1,26 +1,6 @@
 {
-  "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": {
-          "type": "grafana",
-          "uid": "-- Grafana --"
-        },
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
-  },
   "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
   "id": null,
-  "links": [],
-  "liveNow": false,
   "panels": [
     {
       "datasource": {
@@ -31,228 +11,33 @@
         "defaults": {
           "color": {
             "mode": "palette-classic"
-          },
-          "custom": {
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "vis": false
-            }
-          },
-          "mappings": []
-        },
-        "overrides": []
+          }        
+        }
       },
       "gridPos": {
-        "h": 16,
+        "h": 20,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "content": "<div style=\"text-align: center;\"><img src=\"http://localhost:8001/topologyImage?width=1400&height=700\" alt=\"Network Topology Diagram\" style=\"max-width: 100%; height: auto; border: 1px solid #333; border-radius: 8px;\"/></div>",
+        "content": "<div><img src=\"http://localhost:8001/topologyImage\" alt=\"Network Topology Diagram\" /></div>",
         "mode": "html"
       },
       "pluginVersion": "10.0.0",
       "targets": [],
       "title": "Mininet Network Topology Diagram",
       "type": "text"
-    },
-    {
-      "datasource": {
-        "type": "grafana-infinity-datasource",
-        "uid": "infinity"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "id": 2,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "columns": [
-            {
-              "selector": "id",
-              "text": "Host",
-              "type": "string"
-            },
-            {
-              "selector": "type",
-              "text": "Type",
-              "type": "string"
-            },
-            {
-              "selector": "interfaces",
-              "text": "Interfaces",
-              "type": "string"
-            }
-          ],
-          "datasource": {
-            "type": "grafana-infinity-datasource",
-            "uid": "infinity"
-          },
-          "filters": [],
-          "format": "table",
-          "global_query_id": "",
-          "parser": "backend",
-          "refId": "A",
-          "root_selector": "nodes",
-          "source": "url",
-          "type": "json",
-          "url": "http://topology:8001/topology",
-          "url_options": {
-            "data": "",
-            "method": "GET"
-          }
-        }
-      ],
-      "title": "Network Hosts and IP Addresses",
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "grafana-infinity-datasource",
-        "uid": "infinity"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "id": 3,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true
-      },
-      "pluginVersion": "10.0.0",
-      "targets": [
-        {
-          "columns": [
-            {
-              "selector": "total_hosts",
-              "text": "Total Hosts",
-              "type": "number"
-            },
-            {
-              "selector": "total_links",
-              "text": "Total Links",
-              "type": "number"
-            },
-            {
-              "selector": "parsed_at",
-              "text": "Last Updated",
-              "type": "timestamp"
-            }
-          ],
-          "datasource": {
-            "type": "grafana-infinity-datasource",
-            "uid": "infinity"
-          },
-          "filters": [],
-          "format": "table",
-          "global_query_id": "",
-          "parser": "backend",
-          "refId": "A",
-          "root_selector": "metadata",
-          "source": "url",
-          "type": "json",
-          "url": "http://topology:8001/topology",
-          "url_options": {
-            "data": "",
-            "method": "GET"
-          }
-        }
-      ],
-      "title": "Topology Metadata",
-      "type": "table"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 38,
   "style": "dark",
   "tags": [
     "mininet",
     "topology",
     "network"
   ],
-  "templating": {
-    "list": []
-  },
   "time": {
     "from": "now-5m",
     "to": "now"
@@ -260,7 +45,5 @@
   "timepicker": {},
   "timezone": "",
   "title": "Mininet Network Topology Visualization",
-  "uid": "mininet-topology",
-  "version": 2,
-  "weekStart": ""
+  "uid": "mininet-topology"
 }
