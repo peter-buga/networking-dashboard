@@ -4,7 +4,6 @@ WORKDIR /app
 
 # Install system dependencies for Graphviz
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends graphviz \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
