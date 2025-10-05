@@ -2,6 +2,8 @@
 from mininet.net import Mininet
 from mininet.cli import CLI
 import time
+import os
+import textwrap
 
 """
       ╔═══════╗                             ╔═══════╗
@@ -25,8 +27,17 @@ import time
 └───╔═══════╗────┘       └─╔═══════╗─┘        ║ edge2 ║
     ║ edge1 ║              ║ core  ║          ╚═══════╝
     ╚═══════╝              ╚═══════╝           R2DTWO
-     R2DTWO
+     R2DTWO                     |
+                                | eno2 (172.20.0.1/24)
+                                |------------------- obs-eth0 (172.20.0.2/24)
+                        ┌───────────┐
+                        |  obs host |
+                        |(prom+graf)|
+                        └───────────┘
+
+Receiver moved to obs; Prometheus + Grafana run on obs.
 """
+
 
 def main():
     import os
@@ -45,19 +56,25 @@ def main():
     else:
         print("Starting manual MIP version")
 
+    os.system("killall xterm >/dev/null 2>&1")
 
-    os.system("killall xterm")
     net = Mininet()
-    hosts = ["host1", "edge1", "core", "edge2", "host2"]
+
+    # added obs monitoring host
+    hosts = ["host1", "edge1", "core", "edge2", "host2", "obs"]
     for hostname in hosts:
         net.addHost(hostname, ip=None)
-    host1, edge1, core, edge2, host2 = [net.get(n) for n in hosts]
 
+    host1, edge1, core, edge2, host2, obs = [net.get(n) for n in hosts]
+
+    # links
     net.addLink(host1, edge1, intfName1='ue0', intfName2='eno1')
     net.addLink(edge1, core, intfName1='ens2f0', intfName2='ens2f0')
     net.addLink(edge1, core, intfName1='ens2f1', intfName2='ens2f1')
     net.addLink(core, edge2, intfName1='eno0', intfName2='eno1')
     net.addLink(edge2, host2, intfName1='eno2', intfName2='ue0')
+    # monitoring link (core eno2 <-> obs obs-eth0)
+    net.addLink(obs, core, intfName1='obs-eth0', intfName2='eno2')
 
     net.build()
 
@@ -77,6 +94,10 @@ def main():
     edge2.cmd("ip a a 10.10.11.1/24 dev eno2")
     host2.cmd("ip a a 10.10.11.2/24 dev ue0")
 
+    # monitoring network addressing
+    core.cmd("ip a a 172.20.0.1/24 dev eno2")
+    obs.cmd("ip a a 172.20.0.2/24 dev obs-eth0")
+
     # routing
     host1.cmd("ip r add default via 192.168.2.1")
     edge1.cmd("ip r add 10.10.10.0/24 via 192.168.1.1 metric 1")
@@ -86,33 +107,49 @@ def main():
     edge2.cmd("ip r add 192.168.1.0/24 via 10.10.10.1")
     edge2.cmd("ip r add 192.168.0.0/24 via 10.10.10.1")
     edge2.cmd("ip r add 192.168.2.0/24 via 10.10.10.1")
-
     core.cmd("ip r add 192.168.2.0/24 via 192.168.0.2")
     core.cmd("ip r add 192.168.2.0/24 via 192.168.1.2")
 
-    # this rule drop false positive ICMP errors
-    # talker-to-listener packets are tunneled by R2DTWO and they reach their destination
-    # but edge1's routing table dont have host2's prefix and generate ICMP net unreach error
-    # to prevent this, we drop host1's packet right after R2DTWO's tap
+    obs.cmd("ip r add default via 172.20.0.1")
+
+    # drop false positive ICMP errors
     edge1.cmd("iptables -A PREROUTING -t raw -d 10.10.11.0/24 -j DROP")
-    # edge1.cmd("tc qdisc add dev eno1 ingress")
-    # edge1.cmd("tc filter add dev eno1 parent ffff: u32 match ip dst 10.10.11.0/24 action drop")
     host2.cmd("ip r add default via 10.10.11.1")
 
-    edge2.popen(f"xterm -T edge2 -e python3 ../../json_receiver/multipart_json_udp_receiver.py 10.10.10.2 6000")
-    # start r2dtwos in background
+    # receiver moved to obs (172.20.0.2)
+    obs.popen("xterm -T obs_receiver -e python3 ../json_receiver/multipart_json_udp_receiver.py 172.20.0.2 6000")
+
+    # r2dtwo instances
     if automip:
-        edge1.popen(f"xterm -T edge1 -e r2dtwo edge1-automip.ini -h edge1 -v PACKETTRACE:ALL")
-        edge2.popen(f"xterm -T edge2 -e r2dtwo edge2-automip.ini -h edge2 -v PACKETTRACE:ALL")
+        edge1.popen("xterm -T edge1_log -e r2dtwo edge1-automip.ini -h edge1 -v PACKETTRACE:ALL")
+        edge2.popen("xterm -T edge2_log -e r2dtwo edge2-automip.ini -h edge2 -v PACKETTRACE:ALL")
     else:
-        edge1.popen(f"xterm -T edge1 -e r2dtwo edge1.ini -h edge1 -v PACKETTRACE:ALL")
-        edge2.popen(f"xterm -T edge2 -e r2dtwo edge2.ini -h edge2 -v PACKETTRACE:ALL")
+        edge1.popen("xterm -T edge1_log -e r2dtwo edge1.ini -h edge1 -v PACKETTRACE:ALL")
+        edge2.popen("xterm -T edge2_log -e r2dtwo edge2.ini -h edge2 -v PACKETTRACE:ALL")
 
     time.sleep(1)
-    edge1.popen(f"xterm -T edge1 -e telnet localhost 8000")
-    edge2.popen(f"xterm -T edge2 -e telnet localhost 8000")
+    edge1.popen("xterm -T edge1_cmd -e telnet localhost 8000")
+    edge2.popen("xterm -T edge2_cmd -e telnet localhost 8000")
 
-    # in CLI, execute: host1 ping host2
+    # Prometheus config (scrape receiver exporter on :9100)
+    prom_cfg = textwrap.dedent("""
+    global:
+      scrape_interval: 5s
+    scrape_configs:
+      - job_name: 'json_receiver'
+        static_configs:
+          - targets: ['172.20.0.2:9100']
+    """).strip()
+
+    with open("/tmp/prometheus.yml", "w") as f:
+        f.write(prom_cfg)
+
+    # start Prometheus & Grafana (assumes installed in system PATH)
+    obs.popen("xterm -T prometheus -e prometheus --config.file=/tmp/prometheus.yml --web.listen-address=172.20.0.2:9090")
+    obs.popen("xterm -T grafana -e grafana-server --homepath /usr/share/grafana")
+
+    print("Prometheus URL: http://172.20.0.2:9090  Grafana URL: http://172.20.0.2:3000")
+
     CLI(net)
     net.stop()
 
