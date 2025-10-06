@@ -1,14 +1,14 @@
 services:
-  generator:
-    build:
-      context: ./services/generator
-    container_name: nd-generator
-    environment:
-      - METRICS_PORT=8000
-      - INTERVAL_SECONDS=1
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
+  # generator:
+  #   build:
+  #     context: ./services/generator
+  #   container_name: nd-generator
+  #   environment:
+  #     - METRICS_PORT=8000
+  #     - INTERVAL_SECONDS=1
+  #   ports:
+  #     - "8000:8000"
+  #   restart: unless-stopped
 
   topology:
     build:
@@ -22,19 +22,19 @@ services:
       - ./base_files:/app/base_files:ro
     restart: unless-stopped
 
-  collector:
-    build:
-      context: ./services/collector
-    container_name: nd-collector
-    environment:
-      - UDP_PORT=6000
-      - UDP_HOST=0.0.0.0
-      - METRICS_PORT=8002
-      - LOG_LEVEL=INFO
-    ports:
-      - "6000:6000/udp"
-      - "8002:8002"
-    restart: unless-stopped
+  # collector:
+  #   build:
+  #     context: ./services/collector
+  #   container_name: nd-collector
+  #   environment:
+  #     - UDP_PORT=6000
+  #     - UDP_HOST=0.0.0.0
+  #     - METRICS_PORT=8002
+  #     - LOG_LEVEL=INFO
+  #   ports:
+  #     - "6000:6000/udp"
+  #     - "8002:8002"
+  #   restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:latest
@@ -48,10 +48,12 @@ services:
       - "--web.enable-lifecycle"
     ports:
       - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
-      - generator
+     # - generator
       - topology
-      - collector
+     # - collector
     restart: unless-stopped
 
   grafana:

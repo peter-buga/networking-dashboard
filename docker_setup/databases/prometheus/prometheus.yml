@@ -12,3 +12,8 @@ scrape_configs:
   - job_name: 'collector'
     static_configs:
       - targets: ['collector:8002']
+  - job_name: 'udp-receiver'
+    static_configs:
+      - targets: ['host.docker.internal:19100']
+    scrape_interval: 5s
+    metrics_path: /metrics

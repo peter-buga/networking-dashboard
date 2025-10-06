@@ -1,0 +1,263 @@
+{
+    "notif_seq": 11,
+    "notif_hostname": "edge1",
+    "notif_tstamp": 1759757382.0001693,
+    "notif_msg": {
+        "c_edge1_rx": {
+            "level": 3,
+            "name": "c_edge1_rx",
+            "object": {
+                "discarded_packets": 0,
+                "history_length": 512,
+                "latent_error_paths": 2,
+                "latent_error_resets": 0,
+                "latent_errors": 0,
+                "name": "pef",
+                "passed_packets": 0,
+                "recovery_algorithm": "vector",
+                "recovery_seq_num": 65535,
+                "reset_msec": 2000,
+                "seq_recovery_resets": 1,
+                "type": "seqrec",
+                "use_init_flag": false,
+                "use_reset_flag": false
+            },
+            "recv": 0,
+            "send": 0,
+            "stream_name": "pef-compound",
+            "type": "MIP"
+        },
+        "c_edge1_tx": {
+            "level": 3,
+            "name": "c_edge1_tx",
+            "object": {
+                "name": "prf",
+                "octets_passed": 2124,
+                "packets_passed": 12,
+                "pipelines": [
+                    {
+                        "action_count": 4,
+                        "mask_state": "unmasked",
+                        "name": "tx1"
+                    },
+                    {
+                        "action_count": 4,
+                        "mask_state": "unmasked",
+                        "name": "tx2"
+                    }
+                ],
+                "type": "replicate"
+            },
+            "recv": 0,
+            "send": 12,
+            "stream_name": "stream_uni",
+            "type": "MIP"
+        },
+        "gen": {
+            "name": "gen",
+            "type": "seqgen",
+            "use_init_flag": false,
+            "use_reset_flag": false
+        },
+        "ifNotify_ens2f0": {
+            "recv_octets": 0,
+            "recv_packets": 0,
+            "send_octets": 33967,
+            "send_packets": 32
+        },
+        "ifNotify_ens2f1": {
+            "recv_octets": 0,
+            "recv_packets": 0,
+            "send_octets": 33967,
+            "send_packets": 32
+        },
+        "nni0_in": {
+            "recv_octets": 0,
+            "recv_packets": 0,
+            "send_octets": 0,
+            "send_packets": 0
+        },
+        "nni0_in parser": {
+            "no match octets": 0,
+            "no match packets": 0,
+            "stream_nni1 octets": 0,
+            "stream_nni1 packets": 0
+        },
+        "nni0_out": {
+            "recv_octets": 0,
+            "recv_packets": 0,
+            "send_octets": 2124,
+            "send_packets": 12
+        },
+        "nni1_in": {
+            "recv_octets": 0,
+            "recv_packets": 0,
+            "send_octets": 0,
+            "send_packets": 0
+        },
+        "nni1_in parser": {
+            "no match octets": 0,
+            "no match packets": 0,
+            "stream_nni2 octets": 0,
+            "stream_nni2 packets": 0
+        },
+        "nni1_out": {
+            "recv_octets": 0,
+            "recv_packets": 0,
+            "send_octets": 2124,
+            "send_packets": 12
+        },
+        "path1_edge1_rx": {
+            "level": 3,
+            "name": "path1_edge1_rx",
+            "object": {
+                "discarded_packets": 0,
+                "history_length": 512,
+                "latent_error_paths": 2,
+                "latent_error_resets": 0,
+                "latent_errors": 0,
+                "name": "pef",
+                "passed_packets": 0,
+                "recovery_algorithm": "vector",
+                "recovery_seq_num": 65535,
+                "reset_msec": 2000,
+                "seq_recovery_resets": 1,
+                "type": "seqrec",
+                "use_init_flag": false,
+                "use_reset_flag": false
+            },
+            "recv": 0,
+            "send": 0,
+            "stream_name": "stream_nni1",
+            "type": "MIP"
+        },
+        "path1_edge1_tx": {
+            "level": 3,
+            "name": "path1_edge1_tx",
+            "object": {
+                "name": "prf",
+                "octets_passed": 2124,
+                "packets_passed": 12,
+                "pipelines": [
+                    {
+                        "action_count": 4,
+                        "mask_state": "unmasked",
+                        "name": "tx1"
+                    },
+                    {
+                        "action_count": 4,
+                        "mask_state": "unmasked",
+                        "name": "tx2"
+                    }
+                ],
+                "type": "replicate"
+            },
+            "recv": 12,
+            "send": 0,
+            "stream_name": "tx1",
+            "type": "MIP"
+        },
+        "path2_edge1_rx": {
+            "level": 3,
+            "name": "path2_edge1_rx",
+            "object": {
+                "discarded_packets": 0,
+                "history_length": 512,
+                "latent_error_paths": 2,
+                "latent_error_resets": 0,
+                "latent_errors": 0,
+                "name": "pef",
+                "passed_packets": 0,
+                "recovery_algorithm": "vector",
+                "recovery_seq_num": 65535,
+                "reset_msec": 2000,
+                "seq_recovery_resets": 1,
+                "type": "seqrec",
+                "use_init_flag": false,
+                "use_reset_flag": false
+            },
+            "recv": 0,
+            "send": 0,
+            "stream_name": "stream_nni2",
+            "type": "MIP"
+        },
+        "path2_edge1_tx": {
+            "level": 3,
+            "name": "path2_edge1_tx",
+            "object": {
+                "name": "prf",
+                "octets_passed": 2124,
+                "packets_passed": 12,
+                "pipelines": [
+                    {
+                        "action_count": 4,
+                        "mask_state": "unmasked",
+                        "name": "tx1"
+                    },
+                    {
+                        "action_count": 4,
+                        "mask_state": "unmasked",
+                        "name": "tx2"
+                    }
+                ],
+                "type": "replicate"
+            },
+            "recv": 12,
+            "send": 0,
+            "stream_name": "tx2",
+            "type": "MIP"
+        },
+        "pef": {
+            "discarded_packets": 0,
+            "history_length": 512,
+            "latent_error_paths": 2,
+            "latent_error_resets": 0,
+            "latent_errors": 0,
+            "name": "pef",
+            "passed_packets": 0,
+            "recovery_algorithm": "vector",
+            "recovery_seq_num": 65535,
+            "reset_msec": 2000,
+            "seq_recovery_resets": 1,
+            "type": "seqrec",
+            "use_init_flag": false,
+            "use_reset_flag": false
+        },
+        "prf": {
+            "name": "prf",
+            "octets_passed": 2124,
+            "packets_passed": 12,
+            "pipelines": [
+                {
+                    "action_count": 4,
+                    "mask_state": "unmasked",
+                    "name": "tx1"
+                },
+                {
+                    "action_count": 4,
+                    "mask_state": "unmasked",
+                    "name": "tx2"
+                }
+            ],
+            "type": "replicate"
+        },
+        "uni_rx": {
+            "recv_octets": 566,
+            "recv_packets": 7,
+            "send_octets": 0,
+            "send_packets": 0
+        },
+        "uni_rx parser": {
+            "no match octets": 0,
+            "no match packets": 7,
+            "stream_uni octets": 0,
+            "stream_uni packets": 0
+        },
+        "uni_tx": {
+            "recv_octets": 0,
+            "recv_packets": 0,
+            "send_octets": 0,
+            "send_packets": 0
+        }
+    }
+}

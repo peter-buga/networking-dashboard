@@ -23,19 +23,18 @@ import textwrap
 │                │       │       eno1├───────┤eno1     │
 │          ens2f1├───────│ens2f1     │       │         │
 │                │       │           │       │  (pef)  │
-│     (prf)      │       │           │       └╔═══════╗┘
+│     (prf)      │       │    eno2   │       └╔═══════╗┘
 └───╔═══════╗────┘       └─╔═══════╗─┘        ║ edge2 ║
     ║ edge1 ║              ║ core  ║          ╚═══════╝
     ╚═══════╝              ╚═══════╝           R2DTWO
      R2DTWO                     |
-                                | eno2 (172.20.0.1/24)
-                                |------------------- obs-eth0 (172.20.0.2/24)
+                                | 
+                                |
                         ┌───────────┐
+                        |  obs-eth0 |
+                        |           |
                         |  obs host |
-                        |(prom+graf)|
                         └───────────┘
-
-Receiver moved to obs; Prometheus + Grafana run on obs.
 """
 
 
@@ -60,21 +59,24 @@ def main():
 
     net = Mininet()
 
-    # added obs monitoring host
     hosts = ["host1", "edge1", "core", "edge2", "host2", "obs"]
     for hostname in hosts:
         net.addHost(hostname, ip=None)
 
     host1, edge1, core, edge2, host2, obs = [net.get(n) for n in hosts]
 
+    # Root-namespace bridge host to expose observability metrics outside Mininet
+    obsbridge = net.addHost("obsbridge", ip=None, inNamespace=False)
+
     # links
+    # Existing point-to-point links
     net.addLink(host1, edge1, intfName1='ue0', intfName2='eno1')
     net.addLink(edge1, core, intfName1='ens2f0', intfName2='ens2f0')
     net.addLink(edge1, core, intfName1='ens2f1', intfName2='ens2f1')
     net.addLink(core, edge2, intfName1='eno0', intfName2='eno1')
     net.addLink(edge2, host2, intfName1='eno2', intfName2='ue0')
-    # monitoring link (core eno2 <-> obs obs-eth0)
     net.addLink(obs, core, intfName1='obs-eth0', intfName2='eno2')
+    net.addLink(obs, obsbridge, intfName1='obs-eth1', intfName2='obsbridge-eth0')
 
     net.build()
 
@@ -93,23 +95,28 @@ def main():
     edge2.cmd("ip a a 10.10.10.2/24 dev eno1")
     edge2.cmd("ip a a 10.10.11.1/24 dev eno2")
     host2.cmd("ip a a 10.10.11.2/24 dev ue0")
-
-    # monitoring network addressing
     core.cmd("ip a a 172.20.0.1/24 dev eno2")
     obs.cmd("ip a a 172.20.0.2/24 dev obs-eth0")
+    obs.cmd("ip link set obs-eth1 up")
+    obs.cmd("ip addr add 10.200.0.1/30 dev obs-eth1")
+    obsbridge.cmd("ip link set obsbridge-eth0 up")
+    obsbridge.cmd("ip addr add 10.200.0.2/30 dev obsbridge-eth0")
 
     # routing
     host1.cmd("ip r add default via 192.168.2.1")
     edge1.cmd("ip r add 10.10.10.0/24 via 192.168.1.1 metric 1")
     edge1.cmd("ip r add 10.10.10.0/24 via 192.168.0.1 metric 10")
+    edge1.cmd("ip r add 172.20.0.0/24 via 192.168.1.1")
+    edge1.cmd("ip r add 172.20.0.0/24 via 192.168.0.1")
     edge1.cmd("ip r add 10.10.11.0/24 blackhole")
     core.cmd("sysctl -w net.ipv4.ip_forward=1")
     edge2.cmd("ip r add 192.168.1.0/24 via 10.10.10.1")
     edge2.cmd("ip r add 192.168.0.0/24 via 10.10.10.1")
     edge2.cmd("ip r add 192.168.2.0/24 via 10.10.10.1")
+    edge2.cmd("ip r add 172.20.0.0/24 via 10.10.10.1")
+    edge2.cmd("ip r add 172.20.0.0/24 via 10.10.10.1")
     core.cmd("ip r add 192.168.2.0/24 via 192.168.0.2")
     core.cmd("ip r add 192.168.2.0/24 via 192.168.1.2")
-
     obs.cmd("ip r add default via 172.20.0.1")
 
     # drop false positive ICMP errors
@@ -117,7 +124,10 @@ def main():
     host2.cmd("ip r add default via 10.10.11.1")
 
     # receiver moved to obs (172.20.0.2)
-    obs.popen("xterm -T obs_receiver -e python3 ../json_receiver/multipart_json_udp_receiver.py 172.20.0.2 6000")
+    obs.popen(
+        "xterm -T obs_receiver -e python3 ../json_receiver/multipart_json_udp_receiver.py "
+        "172.20.0.2 6000 --metrics-host 0.0.0.0 --metrics-port 9100"
+    )
 
     # r2dtwo instances
     if automip:
@@ -130,25 +140,6 @@ def main():
     time.sleep(1)
     edge1.popen("xterm -T edge1_cmd -e telnet localhost 8000")
     edge2.popen("xterm -T edge2_cmd -e telnet localhost 8000")
-
-    # Prometheus config (scrape receiver exporter on :9100)
-    prom_cfg = textwrap.dedent("""
-    global:
-      scrape_interval: 5s
-    scrape_configs:
-      - job_name: 'json_receiver'
-        static_configs:
-          - targets: ['172.20.0.2:9100']
-    """).strip()
-
-    with open("/tmp/prometheus.yml", "w") as f:
-        f.write(prom_cfg)
-
-    # start Prometheus & Grafana (assumes installed in system PATH)
-    obs.popen("xterm -T prometheus -e prometheus --config.file=/tmp/prometheus.yml --web.listen-address=172.20.0.2:9090")
-    obs.popen("xterm -T grafana -e grafana-server --homepath /usr/share/grafana")
-
-    print("Prometheus URL: http://172.20.0.2:9090  Grafana URL: http://172.20.0.2:3000")
 
     CLI(net)
     net.stop()

@@ -9,7 +9,7 @@
             "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}",
-            "program": "notif_pack/scenario_notification/testnet.py",
+            "program": "app/scenario_notification/testnet.py",
             "sudo": true,
 
         }
