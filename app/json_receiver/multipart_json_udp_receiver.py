@@ -129,15 +129,18 @@ def main():
 
     while True:
         data, addr = udp_socket.recvfrom(4096)
-        metrics.inc_received()
-
+        
         host_ip, port = resolve_sender(addr)
 
         json_received = receiver.process_notification(host_ip, port, data)
+    
+        hostname = json_received.get("notif_hostname", "unknown") if json_received else "unknown"
+        
+        metrics.inc_received(hostname)
+        
         if json_received is None:
             continue
 
-        hostname = json_received.get("notif_hostname")
         seq_num = json_received.get("notif_seq")
         timestamp = json_received.get("notif_tstamp")
 
@@ -183,8 +186,8 @@ def main():
         print("........... Summary end ...........")
         print(f"Message count: {message_count}")
 
-        metrics.inc_processed()
-        metrics.add_bytes(len(data))
+        metrics.inc_processed(hostname)
+        metrics.add_bytes(len(data), hostname)
         metrics.set_last_timestamp(timestamp)
 
         message_count += 1

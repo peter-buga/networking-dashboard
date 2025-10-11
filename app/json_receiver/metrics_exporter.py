@@ -16,18 +16,22 @@ class MetricsExporter:
         self.received = Counter(
             "json_notifications_received_total",
             "Total JSON notification datagrams received (including fragments)",
+            ["hostname"]
         )
         self.processed = Counter(
             "json_notifications_processed_total",
             "Total JSON notifications successfully reassembled",
+            ["hostname"]
         )
         self.bytes = Counter(
             "json_notification_bytes_total",
             "Total bytes of JSON notification payloads",
+            ["hostname"]
         )
         self.failures = Counter(
             "json_notification_failures_total",
             "Total JSON notifications that failed to parse or validate",
+            ["hostname"]
         )
 
         # Network interface metrics
@@ -124,21 +128,21 @@ class MetricsExporter:
         start_http_server(port, addr=host)
         print(f"Prometheus metrics exporter listening on http://{host}:{port}/metrics")
 
-    def inc_received(self):
+    def inc_received(self, hostname: str = "unknown"):
         if self.enabled:
-            self.received.inc()
+            self.received.labels(hostname=hostname).inc()
 
-    def inc_processed(self):
+    def inc_processed(self, hostname: str = "unknown"):
         if self.enabled:
-            self.processed.inc()
+            self.processed.labels(hostname=hostname).inc()
 
-    def inc_failures(self):
+    def inc_failures(self, hostname: str = "unknown"):
         if self.enabled:
-            self.failures.inc()
+            self.failures.labels(hostname=hostname).inc()
 
-    def add_bytes(self, byte_count: int):
+    def add_bytes(self, byte_count: int, hostname: str = "unknown"):
         if self.enabled:
-            self.bytes.inc(byte_count)
+            self.bytes.labels(hostname=hostname).inc(byte_count)
 
     def set_last_timestamp(self, timestamp: Optional[float]):
         if self.enabled and self._last_timestamp_gauge is not None and timestamp is not None:

@@ -2,8 +2,6 @@
 from mininet.net import Mininet
 from mininet.cli import CLI
 import time
-import os
-import textwrap
 
 """
       ╔═══════╗                             ╔═══════╗
@@ -138,11 +136,11 @@ def main():
         edge2.popen("xterm -T edge2_log -e r2dtwo edge2.ini -h edge2 -v PACKETTRACE:ALL")
 
     time.sleep(1)
-    edge1.popen("xterm -T edge1_cmd -e telnet localhost 8000")
+    edge1_cmd = edge1.popen("xterm -T edge1_cmd -e telnet localhost 8000")
     edge2.popen("xterm -T edge2_cmd -e telnet localhost 8000")
+
 
     CLI(net)
     net.stop()
-
 
 main()
