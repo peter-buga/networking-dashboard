@@ -198,7 +198,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "notif/min"
         },
         "overrides": []
       },
@@ -233,9 +233,9 @@
             "type": "prometheus",
             "uid": "Prometheus"
           },
-          "expr": "sum(rate(json_notifications_processed_total{hostname=\"$hostname\"}[5m]))",
+          "expr": "sum(rate(json_notifications_processed_total{hostname=\"$hostname\"}[5m])) * 60",
           "interval": "",
-          "legendFormat": "Notifications/sec",
+          "legendFormat": "Notifications/min",
           "refId": "A"
         }
       ],
