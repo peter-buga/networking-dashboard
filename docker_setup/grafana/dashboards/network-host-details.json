@@ -425,9 +425,9 @@
             "type": "prometheus",
             "uid": "Prometheus"
           },
-          "expr": "json_notification_last_timestamp_seconds",
+          "expr": "time() - json_notification_last_timestamp_seconds",
           "interval": "",
-          "legendFormat": "Last Update",
+          "legendFormat": "Seconds Ago",
           "refId": "A"
         }
       ],
