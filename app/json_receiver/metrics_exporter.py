@@ -35,12 +35,12 @@ class MetricsExporter:
         )
 
         # Network interface metrics
-        self.interface_packets_total = Counter(
+        self.interface_packets_total = Gauge(
             "network_interface_packets_total",
             "Total packets on network interfaces",
             ["hostname", "interface", "direction"]
         )
-        self.interface_octets_total = Counter(
+        self.interface_octets_total = Gauge(
             "network_interface_octets_total", 
             "Total octets (bytes) on network interfaces",
             ["hostname", "interface", "direction"]
@@ -197,15 +197,11 @@ class MetricsExporter:
         recv_octets = data.get("recv_octets", 0) 
         send_octets = data.get("send_octets", 0)
 
-        # Update counters with current values (Prometheus counters are monotonic)
-        if recv_packets > 0:
-            self.interface_packets_total.labels(hostname=hostname, interface=interface, direction="recv").inc(recv_packets)
-        if send_packets > 0:
-            self.interface_packets_total.labels(hostname=hostname, interface=interface, direction="send").inc(send_packets)
-        if recv_octets > 0:
-            self.interface_octets_total.labels(hostname=hostname, interface=interface, direction="recv").inc(recv_octets)
-        if send_octets > 0:
-            self.interface_octets_total.labels(hostname=hostname, interface=interface, direction="send").inc(send_octets)
+        # Set gauge values directly (these are cumulative counters from equipment)
+        self.interface_packets_total.labels(hostname=hostname, interface=interface, direction="recv").set(recv_packets)
+        self.interface_packets_total.labels(hostname=hostname, interface=interface, direction="send").set(send_packets)
+        self.interface_octets_total.labels(hostname=hostname, interface=interface, direction="recv").set(recv_octets)
+        self.interface_octets_total.labels(hostname=hostname, interface=interface, direction="send").set(send_octets)
 
     def _update_mip_metrics(self, hostname: str, component: str, data: Dict[str, Any]):
         """Update MIP component metrics."""
