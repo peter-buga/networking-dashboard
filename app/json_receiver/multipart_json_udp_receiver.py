@@ -7,6 +7,23 @@ import signal
 import socket
 import sys
 from typing import Tuple
+import logging
+from pathlib import Path
+
+# Configure logging with both console and file output
+log_dir = Path("logs")
+log_dir.mkdir(exist_ok=True)
+log_file = log_dir / "multipart_json_udp_receiver.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 from notification_receiver import NotificationReceiver
 from metrics_exporter import MetricsExporter
@@ -19,7 +36,7 @@ DEFAULT_METRICS_PORT = 9100
 
 def signal_handler(sig, frame):
     """Exit cleanly when Ctrl+C is pressed."""
-    print("Ctrl+C pressed, exiting.")
+    logger.info("Ctrl+C pressed, exiting.")
     sys.exit(0)
 
 def parse_cli_arguments() -> argparse.Namespace:
@@ -107,23 +124,23 @@ def main():
     try:
         validate_port(args.listen_port)
     except ValueError as exc:
-        print(exc)
+        logger.error(exc)
         sys.exit(1)
 
     try:
         udp_socket = create_udp_socket(args.listen_address, args.listen_port)
     except ValueError as exc:
-        print(exc)
+        logger.error(exc)
         sys.exit(1)
     except OSError as exc:
-        print(f"Unable to bind UDP socket on {args.listen_address}:{args.listen_port} -> {exc}")
+        logger.error(f"Unable to bind UDP socket on {args.listen_address}:{args.listen_port} -> {exc}")
         sys.exit(1)
 
     metrics = MetricsExporter(args.metrics_host, args.metrics_port, args.no_metrics)
 
     receiver = NotificationReceiver()
 
-    print(f"JSON receiver server started on {args.listen_address} : {args.listen_port}")
+    logger.info(f"JSON receiver server started on {args.listen_address} : {args.listen_port}")
 
     message_count = 0
 
@@ -134,16 +151,27 @@ def main():
 
         json_received = receiver.process_notification(host_ip, port, data)
         
+        if json_received is None:
+            continue
+        
         # Update detailed notification metrics
         metrics.update_notification_metrics(json_received)
         
-        print("========== Notification ==========")
-        print(json.dumps(json_received, indent=4))
-        print("........... End ...........")
-        print(f"Message count: {message_count}")
+        logger.info("========== Notification ==========")
+        logger.info(json.dumps(json_received, indent=4))
+        logger.info("........... End ...........")
+        logger.info(f"Message count: {message_count}")
 
         message_count += 1
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        try:
+            input("Press Enter to exit...")
+        except (EOFError, KeyboardInterrupt):
+            pass
+        sys.exit(1)

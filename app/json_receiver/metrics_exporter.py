@@ -24,7 +24,7 @@ class MetricsExporter:
         self.seqrec_latent_errors_counter = Counter('seqrec_latent_errors', 'Number of latent errors', labels)
         self.seqrec_passed_packets_counter = Counter('seqrec_passed_packets', 'Number of passed packets', labels)
         self.seqrec_recovery_algorithm = Enum('seqrec_recovery_algorithm', 'Algorithm used for sequence recovery',
-                                              states=['vector'], labelnames=labels)
+                                              states=['vector', 'match'], labelnames=labels)
         self.seqrec_use_init_flag = Enum('seqrec_use_init_flag', "Use init flag",
                                         states=["true", "false"], labelnames=labels)
         self.seqrec_use_reset_flag = Enum('seqrec_use_reset_flag', "Use reset flag",
@@ -51,7 +51,7 @@ class MetricsExporter:
 
     
         self.mip_seqrec_recovery_algorithm = Enum('mip_seqrec_recovery_algorithm', 'Algorithm used for sequence recovery',
-                                                  states=['vector'], labelnames=seqrec_mip_labels)
+                                                  states=['vector', 'match'], labelnames=seqrec_mip_labels)
         self.mip_seqrec_use_init_flag = Enum('mip_seqrec_use_init_flag', "Use init flag",
                                              states=["true", "false"], labelnames=seqrec_mip_labels)
         self.mip_seqrec_use_reset_flag = Enum('mip_seqrec_use_reset_flag', "Use reset flag",
@@ -98,7 +98,7 @@ class MetricsExporter:
 
     def update_notification_metrics(self, json_data: Dict[str, Any]) -> None:
         """Parse notification JSON and update Prometheus metrics."""
-        if not self.enabled:
+        if not self.enabled or json_data is None:
             return
         
         hostname = json_data.get('notif_hostname', 'unknown')
@@ -203,7 +203,7 @@ class MetricsExporter:
                 self.seqrec_recovery_seq_num_gauge.labels(**seqrec_labels).set(component_data.get('recovery_seq_num', 0))
                 self.seqrec_reset_msec_gauge.labels(**seqrec_labels).set(component_data.get('reset_msec', 0))
                 
-                # Counters
+                # Counters #TODO: Make sure to increase by change not by full value
                 self.seqrec_discarded_packets_counter.labels(**seqrec_labels).inc(component_data.get('discarded_packets', 0))
                 self.seqrec_latent_error_resets_counter.labels(**seqrec_labels).inc(component_data.get('latent_error_resets', 0))
                 self.seqrec_latent_errors_counter.labels(**seqrec_labels).inc(component_data.get('latent_errors', 0))
