@@ -133,62 +133,14 @@ def main():
         host_ip, port = resolve_sender(addr)
 
         json_received = receiver.process_notification(host_ip, port, data)
-    
-        hostname = json_received.get("notif_hostname", "unknown") if json_received else "unknown"
         
-        metrics.inc_received(hostname)
-        
-        if json_received is None:
-            continue
-
-        seq_num = json_received.get("notif_seq")
-        timestamp = json_received.get("notif_tstamp")
-
         # Update detailed notification metrics
         metrics.update_notification_metrics(json_received)
         
-        # Extract summary for logging
-        summary = receiver.extract_notification_summary(json_received)
-
-        print(
-            f"\nReceived {len(data)} bytes from {hostname} , {host_ip} : {port} "
-            f"with sequence number {seq_num}"
-        )
-        
-        
-        print("========== Notification Summary ==========")
-        print(f"Hostname: {summary.get('hostname')}")
-        print(f"Sequence: {summary.get('sequence')}")
-        print(f"Traffic Summary:")
-        traffic = summary.get('traffic_summary', {})
-        print(f"  Total packets recv/send: {traffic.get('total_recv_packets', 0)}/{traffic.get('total_send_packets', 0)}")
-        print(f"  Total octets recv/send: {traffic.get('total_recv_octets', 0)}/{traffic.get('total_send_octets', 0)}")
-        
-        # Show active interfaces
-        active_interfaces = {name: info for name, info in summary.get('interfaces', {}).items() if info.get('active')}
-        if active_interfaces:
-            print(f"Active Interfaces: {list(active_interfaces.keys())}")
-        
-        # Show active MIP components
-        active_mips = {name: info for name, info in summary.get('mip_components', {}).items() if info.get('active')}
-        if active_mips:
-            print(f"Active MIP Components: {list(active_mips.keys())}")
-        
-        # Show error indicators
-        errors = summary.get('error_indicators', {})
-        if errors:
-            print(f"Error Indicators: {list(errors.keys())}")
-            for comp, error_info in errors.items():
-                print(f"  {comp}: {error_info}")
-        else:
-            print("No error indicators detected")
-            
-        print("........... Summary end ...........")
+        print("========== Notification ==========")
+        print(json.dumps(json_received, indent=4))
+        print("........... End ...........")
         print(f"Message count: {message_count}")
-
-        metrics.inc_processed(hostname)
-        metrics.add_bytes(len(data), hostname)
-        metrics.set_last_timestamp(timestamp)
 
         message_count += 1
 

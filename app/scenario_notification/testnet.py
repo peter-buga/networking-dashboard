@@ -122,8 +122,11 @@ def main():
     host2.cmd("ip r add default via 10.10.11.1")
 
     # receiver moved to obs (172.20.0.2)
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    receiver_path = os.path.join(script_dir, "../json_receiver/multipart_json_udp_receiver.py")
     obs.popen(
-        "xterm -T obs_receiver -e python3 ../json_receiver/multipart_json_udp_receiver.py "
+        f"xterm -T obs_receiver -e python3 {receiver_path} "
         "172.20.0.2 6000 --metrics-host 0.0.0.0 --metrics-port 9100"
     )
 
