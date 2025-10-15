@@ -139,6 +139,8 @@ def main():
     edge1.popen("xterm -T edge1_cmd -e telnet localhost 8000")
     edge2.popen("xterm -T edge2_cmd -e telnet localhost 8000")
 
+    host1.popen("xterm -T host1")
+    host2.popen("xterm -T host2")
 
     CLI(net)
     net.stop()

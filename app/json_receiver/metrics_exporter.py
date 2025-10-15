@@ -79,6 +79,26 @@ class MetricsExporter:
             "Number of sequence recovery resets",
             ["hostname", "component"]
         )
+        self.seqrec_history_length = Gauge(
+            "seqrec_history_length",
+            "History length setting for sequence recovery",
+            ["hostname", "component"]
+        )
+        self.seqrec_latent_error_paths = Gauge(
+            "seqrec_latent_error_paths",
+            "Number of latent error paths in sequence recovery",
+            ["hostname", "component"]
+        )
+        self.seqrec_latent_error_resets = Gauge(
+            "seqrec_latent_error_resets",
+            "Number of latent error resets in sequence recovery",
+            ["hostname", "component"]
+        )
+        self.seqrec_reset_msec = Gauge(
+            "seqrec_reset_msec",
+            "Reset timeout in milliseconds for sequence recovery",
+            ["hostname", "component"]
+        )
 
         # Packet replication metrics
         self.replicate_octets_passed = Gauge(
@@ -232,6 +252,10 @@ class MetricsExporter:
         self.seqrec_passed_packets.labels(hostname=hostname, component=component).set(data.get("passed_packets", 0))
         self.seqrec_latent_errors.labels(hostname=hostname, component=component).set(data.get("latent_errors", 0))
         self.seqrec_recovery_resets.labels(hostname=hostname, component=component).set(data.get("seq_recovery_resets", 0))
+        self.seqrec_history_length.labels(hostname=hostname, component=component).set(data.get("history_length", 0))
+        self.seqrec_latent_error_paths.labels(hostname=hostname, component=component).set(data.get("latent_error_paths", 0))
+        self.seqrec_latent_error_resets.labels(hostname=hostname, component=component).set(data.get("latent_error_resets", 0))
+        self.seqrec_reset_msec.labels(hostname=hostname, component=component).set(data.get("reset_msec", 0))
 
     def _update_replicate_metrics(self, hostname: str, component: str, data: Dict[str, Any]):
         """Update packet replication metrics."""

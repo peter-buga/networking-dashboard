@@ -155,7 +155,7 @@ def main():
             f"with sequence number {seq_num}"
         )
         
-        # Print useful summary instead of full JSON
+        
         print("========== Notification Summary ==========")
         print(f"Hostname: {summary.get('hostname')}")
         print(f"Sequence: {summary.get('sequence')}")
