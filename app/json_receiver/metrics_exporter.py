@@ -6,7 +6,7 @@ class MetricsExporter:
     def __init__(self, host: str, port: int, disabled: bool):
         self.enabled = False
         self._last_timestamp_gauge: Optional[Gauge] = None
-
+        self._previous_values: Dict[str, Dict[str, int]] = {} 
         if disabled:
             print("Prometheus metrics exporter disabled by configuration.")
             return
@@ -23,12 +23,12 @@ class MetricsExporter:
         self.seqrec_latent_error_resets_counter = Counter('seqrec_latent_error_resets', 'Number of latent error resets', labels)
         self.seqrec_latent_errors_counter = Counter('seqrec_latent_errors', 'Number of latent errors', labels)
         self.seqrec_passed_packets_counter = Counter('seqrec_passed_packets', 'Number of passed packets', labels)
-        self.seqrec_recovery_algorithm = Enum('seqrec_recovery_algorithm', 'Algorithm used for sequence recovery',
-                                              states=['vector', 'match'], labelnames=labels)
-        self.seqrec_use_init_flag = Enum('seqrec_use_init_flag', "Use init flag",
-                                        states=["true", "false"], labelnames=labels)
-        self.seqrec_use_reset_flag = Enum('seqrec_use_reset_flag', "Use reset flag",
-                                        states=["true", "false"], labelnames=labels)
+        self.seqrec_recovery_algorithm = Gauge('seqrec_recovery_algorithm', 'Algorithm used for sequence recovery',
+                                              labelnames=labels + ['algorithm'])
+        self.seqrec_use_init_flag = Gauge('seqrec_use_init_flag', "Use init flag",
+                                        labelnames=labels)
+        self.seqrec_use_reset_flag = Gauge('seqrec_use_reset_flag', "Use reset flag",
+                                        labelnames=labels)
         self.seqrec_seq_recovery_resets_counter = Counter('seqrec_seq_recovery_resets', 'Number of sequence recovery resets', labels)
         self.seqrec_recovery_seq_num_gauge = Gauge('seqrec_recovery_seq_num', 'Recovery sequence number', labels)
         self.seqrec_reset_msec_gauge = Gauge('seqrec_reset_msec', 'Reset time in milliseconds', labels)
@@ -50,12 +50,12 @@ class MetricsExporter:
         self.mip_seqrec_send_counter = Counter('mip_seqrec_send', 'Number of sent items', seqrec_mip_labels)
 
     
-        self.mip_seqrec_recovery_algorithm = Enum('mip_seqrec_recovery_algorithm', 'Algorithm used for sequence recovery',
-                                                  states=['vector', 'match'], labelnames=seqrec_mip_labels)
-        self.mip_seqrec_use_init_flag = Enum('mip_seqrec_use_init_flag', "Use init flag",
-                                             states=["true", "false"], labelnames=seqrec_mip_labels)
-        self.mip_seqrec_use_reset_flag = Enum('mip_seqrec_use_reset_flag', "Use reset flag",
-                                             states=["true", "false"], labelnames=seqrec_mip_labels)
+        self.mip_seqrec_recovery_algorithm = Gauge('mip_seqrec_recovery_algorithm', 'Algorithm used for sequence recovery',
+                                                  labelnames=seqrec_mip_labels + ['algorithm'])
+        self.mip_seqrec_use_init_flag = Gauge('mip_seqrec_use_init_flag', "Use init flag",
+                                             labelnames=seqrec_mip_labels)
+        self.mip_seqrec_use_reset_flag = Gauge('mip_seqrec_use_reset_flag', "Use reset flag",
+                                             labelnames=seqrec_mip_labels)
 
 
         #Replicate
@@ -64,8 +64,8 @@ class MetricsExporter:
         self.replicate_octets_passed_counter = Counter('replicate_octets_passed', 'Number of octets passed', labels)
         self.replicate_packets_passed_counter = Counter('replicate_packets_passed', 'Number of packets passed', labels)
         self.replicate_pipeline_action_count_gauge = Gauge('replicate_pipeline_action_count', 'Action count per pipeline', replicate_labels)
-        self.replicate_pipeline_mask_state = Enum('replicate_pipeline_mask_state', 'Mask state of the pipeline',
-                                                  states=['masked', 'unmasked'], labelnames=replicate_labels)
+        self.replicate_pipeline_mask_state = Gauge('replicate_pipeline_mask_state', 'Mask state of the pipeline',
+                                                  labelnames=replicate_labels + ['state'])
 
         #MIP - Replicate
         replicate_mip_labels = ['hostname','component_name','component_type','stream_name','object_name', 'object_type']
@@ -77,16 +77,16 @@ class MetricsExporter:
         self.mip_replicate_recv_counter = Counter('mip_replicate_recv', 'Number of received items for replicate', replicate_mip_labels)
         self.mip_replicate_send_counter = Counter('mip_replicate_send', 'Number of sent items for replicate', replicate_mip_labels)
         self.mip_replicate_pipeline_action_count_gauge = Gauge('mip_replicate_pipeline_action_count', 'Action count per pipeline', replicate_mip_pipeline_labels)
-        self.mip_replicate_pipeline_mask_state = Enum('mip_replicate_pipeline_mask_state', 'Mask state of the pipeline',
-                                                     states=['masked', 'unmasked'], labelnames=replicate_mip_pipeline_labels)
+        self.mip_replicate_pipeline_mask_state = Gauge('mip_replicate_pipeline_mask_state', 'Mask state of the pipeline',
+                                                     labelnames=replicate_mip_pipeline_labels + ['state'])
 
         # SequenceGenerator
         seqgen_labels = ['hostname','component_name','component_type']
 
-        self.seqgen_use_init_flag = Enum('seqgen_use_init_flag', "Use init flag",
-                                        states=["true", "false"], labelnames=seqgen_labels)
-        self.seqgen_use_reset_flag = Enum('seqgen_use_reset_flag', "Use reset flag",
-                                        states=["true", "false"], labelnames=seqgen_labels)
+        self.seqgen_use_init_flag = Gauge('seqgen_use_init_flag', "Use init flag",
+                                        labelnames=seqgen_labels)
+        self.seqgen_use_reset_flag = Gauge('seqgen_use_reset_flag', "Use reset flag",
+                                        labelnames=seqgen_labels)
         
         #Interfaces
         interface_labels = ['hostname','interface_name']
@@ -136,8 +136,21 @@ class MetricsExporter:
                 # Handle MIP with seqrec object
                 if object_type == 'seqrec':
                     self.mip_seqrec_level_gauge.labels(**base_labels).set(level)
-                    self.mip_seqrec_recv_counter.labels(**base_labels).inc(recv)
-                    self.mip_seqrec_send_counter.labels(**base_labels).inc(send)
+                    
+                    # Calculate delta for recv/send
+                    label_key = str(sorted(base_labels.items()))
+                    recv_send_key = f"{label_key}:recv_send"
+                    if recv_send_key not in self._previous_values:
+                        self._previous_values[recv_send_key] = {'recv': recv, 'send': send}
+                        recv_delta = 0
+                        send_delta = 0
+                    else:
+                        recv_delta = max(0, recv - self._previous_values[recv_send_key]['recv'])
+                        send_delta = max(0, send - self._previous_values[recv_send_key]['send'])
+                        self._previous_values[recv_send_key] = {'recv': recv, 'send': send}
+                    
+                    self.mip_seqrec_recv_counter.labels(**base_labels).inc(recv_delta)
+                    self.mip_seqrec_send_counter.labels(**base_labels).inc(send_delta)
                     
                     # Gauges
                     self.mip_seqrec_history_length_gauge.labels(**base_labels).set(obj.get('history_length', 0))
@@ -145,32 +158,81 @@ class MetricsExporter:
                     self.mip_seqrec_recovery_seq_num_gauge.labels(**base_labels).set(obj.get('recovery_seq_num', 0))
                     self.mip_seqrec_reset_msec_gauge.labels(**base_labels).set(obj.get('reset_msec', 0))
                     
-                    # Counters
-                    self.mip_seqrec_discarded_packets_counter.labels(**base_labels).inc(obj.get('discarded_packets', 0))
-                    self.mip_seqrec_latent_error_resets_counter.labels(**base_labels).inc(obj.get('latent_error_resets', 0))
-                    self.mip_seqrec_latent_errors_counter.labels(**base_labels).inc(obj.get('latent_errors', 0))
-                    self.mip_seqrec_passed_packets_counter.labels(**base_labels).inc(obj.get('passed_packets', 0))
-                    self.mip_seqrec_seq_recovery_resets_counter.labels(**base_labels).inc(obj.get('seq_recovery_resets', 0))
+                    # Counters - track deltas for rolling sums
+                    counter_key = f"{label_key}:counters"
+                    if counter_key not in self._previous_values:
+                        self._previous_values[counter_key] = {
+                            'discarded_packets': obj.get('discarded_packets', 0),
+                            'latent_error_resets': obj.get('latent_error_resets', 0),
+                            'latent_errors': obj.get('latent_errors', 0),
+                            'passed_packets': obj.get('passed_packets', 0),
+                            'seq_recovery_resets': obj.get('seq_recovery_resets', 0)
+                        }
+                    else:
+                        discarded_packets_delta = max(0, obj.get('discarded_packets', 0) - self._previous_values[counter_key]['discarded_packets'])
+                        latent_error_resets_delta = max(0, obj.get('latent_error_resets', 0) - self._previous_values[counter_key]['latent_error_resets'])
+                        latent_errors_delta = max(0, obj.get('latent_errors', 0) - self._previous_values[counter_key]['latent_errors'])
+                        passed_packets_delta = max(0, obj.get('passed_packets', 0) - self._previous_values[counter_key]['passed_packets'])
+                        seq_recovery_resets_delta = max(0, obj.get('seq_recovery_resets', 0) - self._previous_values[counter_key]['seq_recovery_resets'])
+                        
+                        self._previous_values[counter_key] = {
+                            'discarded_packets': obj.get('discarded_packets', 0),
+                            'latent_error_resets': obj.get('latent_error_resets', 0),
+                            'latent_errors': obj.get('latent_errors', 0),
+                            'passed_packets': obj.get('passed_packets', 0),
+                            'seq_recovery_resets': obj.get('seq_recovery_resets', 0)
+                        }
+                        
+                        self.mip_seqrec_discarded_packets_counter.labels(**base_labels).inc(discarded_packets_delta)
+                        self.mip_seqrec_latent_error_resets_counter.labels(**base_labels).inc(latent_error_resets_delta)
+                        self.mip_seqrec_latent_errors_counter.labels(**base_labels).inc(latent_errors_delta)
+                        self.mip_seqrec_passed_packets_counter.labels(**base_labels).inc(passed_packets_delta)
+                        self.mip_seqrec_seq_recovery_resets_counter.labels(**base_labels).inc(seq_recovery_resets_delta)
                     
                     # Enums
                     recovery_algo = obj.get('recovery_algorithm', 'vector')
-                    self.mip_seqrec_recovery_algorithm.labels(**base_labels).state(recovery_algo)
+                    self.mip_seqrec_recovery_algorithm.labels(**base_labels, algorithm=recovery_algo).set(1)
                     
-                    use_init = 'true' if obj.get('use_init_flag', False) else 'false'
-                    self.mip_seqrec_use_init_flag.labels(**base_labels).state(use_init)
-                    
-                    use_reset = 'true' if obj.get('use_reset_flag', False) else 'false'
-                    self.mip_seqrec_use_reset_flag.labels(**base_labels).state(use_reset)
+                    self.mip_seqrec_use_init_flag.labels(**base_labels).set(1 if obj.get('use_init_flag', False) else 0)
+                    self.mip_seqrec_use_reset_flag.labels(**base_labels).set(1 if obj.get('use_reset_flag', False) else 0)
                 
                 # Handle MIP with replicate object
                 elif object_type == 'replicate':
                     self.mip_replicate_level_gauge.labels(**base_labels).set(level)
-                    self.mip_replicate_recv_counter.labels(**base_labels).inc(recv)
-                    self.mip_replicate_send_counter.labels(**base_labels).inc(send)
                     
-                    # Counters
-                    self.mip_replicate_octets_passed_counter.labels(**base_labels).inc(obj.get('octets_passed', 0))
-                    self.mip_replicate_packets_passed_counter.labels(**base_labels).inc(obj.get('packets_passed', 0))
+                    # Calculate delta for recv/send (rolling sum -> delta increment)
+                    label_key = str(sorted(base_labels.items()))
+                    recv_send_key = f"{label_key}:recv_send"
+                    if recv_send_key not in self._previous_values:
+                        self._previous_values[recv_send_key] = {'recv': recv, 'send': send}
+                        recv_delta = 0
+                        send_delta = 0
+                    else:
+                        recv_delta = max(0, recv - self._previous_values[recv_send_key]['recv'])
+                        send_delta = max(0, send - self._previous_values[recv_send_key]['send'])
+                        self._previous_values[recv_send_key] = {'recv': recv, 'send': send}
+                    
+                    self.mip_replicate_recv_counter.labels(**base_labels).inc(recv_delta)
+                    self.mip_replicate_send_counter.labels(**base_labels).inc(send_delta)
+                    
+                    # Counters - track deltas for rolling sums
+                    counter_key = f"{label_key}:counters"
+                    if counter_key not in self._previous_values:
+                        self._previous_values[counter_key] = {
+                            'octets_passed': obj.get('octets_passed', 0),
+                            'packets_passed': obj.get('packets_passed', 0)
+                        }
+                    else:
+                        octets_passed_delta = max(0, obj.get('octets_passed', 0) - self._previous_values[counter_key]['octets_passed'])
+                        packets_passed_delta = max(0, obj.get('packets_passed', 0) - self._previous_values[counter_key]['packets_passed'])
+                        
+                        self._previous_values[counter_key] = {
+                            'octets_passed': obj.get('octets_passed', 0),
+                            'packets_passed': obj.get('packets_passed', 0)
+                        }
+                        
+                        self.mip_replicate_octets_passed_counter.labels(**base_labels).inc(octets_passed_delta)
+                        self.mip_replicate_packets_passed_counter.labels(**base_labels).inc(packets_passed_delta)
                     
                     # Handle pipelines
                     pipelines = obj.get('pipelines', [])
@@ -185,7 +247,7 @@ class MetricsExporter:
                         self.mip_replicate_pipeline_action_count_gauge.labels(**pipeline_labels).set(action_count)
                         
                         mask_state = pipeline.get('mask_state', 'unmasked')
-                        self.mip_replicate_pipeline_mask_state.labels(**pipeline_labels).state(mask_state)
+                        self.mip_replicate_pipeline_mask_state.labels(**pipeline_labels, state=mask_state).set(1)
             
             # Handle standalone seqrec components
             elif component_type == 'seqrec':
@@ -203,22 +265,44 @@ class MetricsExporter:
                 self.seqrec_recovery_seq_num_gauge.labels(**seqrec_labels).set(component_data.get('recovery_seq_num', 0))
                 self.seqrec_reset_msec_gauge.labels(**seqrec_labels).set(component_data.get('reset_msec', 0))
                 
-                # Counters #TODO: Make sure to increase by change not by full value
-                self.seqrec_discarded_packets_counter.labels(**seqrec_labels).inc(component_data.get('discarded_packets', 0))
-                self.seqrec_latent_error_resets_counter.labels(**seqrec_labels).inc(component_data.get('latent_error_resets', 0))
-                self.seqrec_latent_errors_counter.labels(**seqrec_labels).inc(component_data.get('latent_errors', 0))
-                self.seqrec_passed_packets_counter.labels(**seqrec_labels).inc(component_data.get('passed_packets', 0))
-                self.seqrec_seq_recovery_resets_counter.labels(**seqrec_labels).inc(component_data.get('seq_recovery_resets', 0))
+                # Counters - track deltas for rolling sums
+                label_key = str(sorted(seqrec_labels.items()))
+                counter_key = f"{label_key}:counters"
+                if counter_key not in self._previous_values:
+                    self._previous_values[counter_key] = {
+                        'discarded_packets': component_data.get('discarded_packets', 0),
+                        'latent_error_resets': component_data.get('latent_error_resets', 0),
+                        'latent_errors': component_data.get('latent_errors', 0),
+                        'passed_packets': component_data.get('passed_packets', 0),
+                        'seq_recovery_resets': component_data.get('seq_recovery_resets', 0)
+                    }
+                else:
+                    discarded_packets_delta = max(0, component_data.get('discarded_packets', 0) - self._previous_values[counter_key]['discarded_packets'])
+                    latent_error_resets_delta = max(0, component_data.get('latent_error_resets', 0) - self._previous_values[counter_key]['latent_error_resets'])
+                    latent_errors_delta = max(0, component_data.get('latent_errors', 0) - self._previous_values[counter_key]['latent_errors'])
+                    passed_packets_delta = max(0, component_data.get('passed_packets', 0) - self._previous_values[counter_key]['passed_packets'])
+                    seq_recovery_resets_delta = max(0, component_data.get('seq_recovery_resets', 0) - self._previous_values[counter_key]['seq_recovery_resets'])
+                    
+                    self._previous_values[counter_key] = {
+                        'discarded_packets': component_data.get('discarded_packets', 0),
+                        'latent_error_resets': component_data.get('latent_error_resets', 0),
+                        'latent_errors': component_data.get('latent_errors', 0),
+                        'passed_packets': component_data.get('passed_packets', 0),
+                        'seq_recovery_resets': component_data.get('seq_recovery_resets', 0)
+                    }
+                    
+                    self.seqrec_discarded_packets_counter.labels(**seqrec_labels).inc(discarded_packets_delta)
+                    self.seqrec_latent_error_resets_counter.labels(**seqrec_labels).inc(latent_error_resets_delta)
+                    self.seqrec_latent_errors_counter.labels(**seqrec_labels).inc(latent_errors_delta)
+                    self.seqrec_passed_packets_counter.labels(**seqrec_labels).inc(passed_packets_delta)
+                    self.seqrec_seq_recovery_resets_counter.labels(**seqrec_labels).inc(seq_recovery_resets_delta)
                 
                 # Enums
-                recovery_algo = component_data.get('recovery_algorithm', 'vector')
-                self.seqrec_recovery_algorithm.labels(**seqrec_labels).state(recovery_algo)
+                recovery_algo = component_data.get('recovery_algorithm', '')
+                self.seqrec_recovery_algorithm.labels(**seqrec_labels, algorithm=recovery_algo).set(1)
                 
-                use_init = 'true' if component_data.get('use_init_flag', False) else 'false'
-                self.seqrec_use_init_flag.labels(**seqrec_labels).state(use_init)
-                
-                use_reset = 'true' if component_data.get('use_reset_flag', False) else 'false'
-                self.seqrec_use_reset_flag.labels(**seqrec_labels).state(use_reset)
+                self.seqrec_use_init_flag.labels(**seqrec_labels).set(1 if component_data.get('use_init_flag', False) else 0)
+                self.seqrec_use_reset_flag.labels(**seqrec_labels).set(1 if component_data.get('use_reset_flag', False) else 0)
             
             # Handle standalone replicate components
             elif component_type == 'replicate':
@@ -230,9 +314,25 @@ class MetricsExporter:
                     'object_type': component_type
                 }
                 
-                # Counters
-                self.replicate_octets_passed_counter.labels(**replicate_labels).inc(component_data.get('octets_passed', 0))
-                self.replicate_packets_passed_counter.labels(**replicate_labels).inc(component_data.get('packets_passed', 0))
+                # Counters - track deltas for rolling sums
+                label_key = str(sorted(replicate_labels.items()))
+                counter_key = f"{label_key}:counters"
+                if counter_key not in self._previous_values:
+                    self._previous_values[counter_key] = {
+                        'octets_passed': component_data.get('octets_passed', 0),
+                        'packets_passed': component_data.get('packets_passed', 0)
+                    }
+                else:
+                    octets_passed_delta = max(0, component_data.get('octets_passed', 0) - self._previous_values[counter_key]['octets_passed'])
+                    packets_passed_delta = max(0, component_data.get('packets_passed', 0) - self._previous_values[counter_key]['packets_passed'])
+                    
+                    self._previous_values[counter_key] = {
+                        'octets_passed': component_data.get('octets_passed', 0),
+                        'packets_passed': component_data.get('packets_passed', 0)
+                    }
+                    
+                    self.replicate_octets_passed_counter.labels(**replicate_labels).inc(octets_passed_delta)
+                    self.replicate_packets_passed_counter.labels(**replicate_labels).inc(packets_passed_delta)
                 
                 # Handle pipelines
                 pipelines = component_data.get('pipelines', [])
@@ -247,7 +347,7 @@ class MetricsExporter:
                     self.replicate_pipeline_action_count_gauge.labels(**pipeline_labels).set(action_count)
                     
                     mask_state = pipeline.get('mask_state', 'unmasked')
-                    self.replicate_pipeline_mask_state.labels(**pipeline_labels).state(mask_state)
+                    self.replicate_pipeline_mask_state.labels(**pipeline_labels, state=mask_state).set(1)
             
             # Handle seqgen components
             elif component_type == 'seqgen':
@@ -258,10 +358,10 @@ class MetricsExporter:
                 }
                 
                 use_init = 'true' if component_data.get('use_init_flag', False) else 'false'
-                self.seqgen_use_init_flag.labels(**seqgen_labels).state(use_init)
+                self.seqgen_use_init_flag.labels(**seqgen_labels).set(1 if component_data.get('use_init_flag', False) else 0)
                 
                 use_reset = 'true' if component_data.get('use_reset_flag', False) else 'false'
-                self.seqgen_use_reset_flag.labels(**seqgen_labels).state(use_reset)
+                self.seqgen_use_reset_flag.labels(**seqgen_labels).set(1 if component_data.get('use_reset_flag', False) else 0)
             
             # Handle interface notifications (ifNotify_*)
             elif component_name.startswith('ifNotify_'):

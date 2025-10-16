@@ -184,27 +184,17 @@
           "color": {
             "mode": "thresholds"
           },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "index": 1,
-                  "text": "vector"
-                },
-                "1": {
-                  "index": 0,
-                  "text": "match"
-                }
-              },
-              "type": "value"
-            }
-          ],
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
               }
             ]
           }
@@ -213,7 +203,7 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
+        "w": 3,
         "x": 6,
         "y": 2
       },
@@ -232,7 +222,7 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "auto",
+        "textMode": "name",
         "wideLayout": true
       },
       "pluginVersion": "12.1.1",
@@ -240,14 +230,11 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "exemplar": false,
-          "expr": "seqrec_recovery_algorithm{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=~\"seqrec\"}",
-          "format": "table",
+          "expr": "seqrec_recovery_algorithm{component_name=~\"$ComponentName\", hostname=\"$Hostname\", component_type=\"seqrec\"}",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
-          "instant": true,
-          "legendFormat": "{{component_name}}",
-          "range": false,
+          "legendFormat": "{{algorithm}}",
+          "range": true,
           "refId": "A",
           "useBackend": false
         }
@@ -281,7 +268,7 @@
       "gridPos": {
         "h": 5,
         "w": 3,
-        "x": 10,
+        "x": 9,
         "y": 2
       },
       "id": 14,
@@ -307,7 +294,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "seqrec_reset_msec{hostname=\"$Hostname\", component_type=\"seqrec\", component_name=\"$ComponentName\"}",
+          "expr": "seqrec_reset_msec{hostname=\"$Hostname\", component_type=\"seqrec\", component_name=~\"$ComponentName\"}",
           "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
@@ -396,8 +383,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 7,
-        "x": 13,
+        "w": 6,
+        "x": 12,
         "y": 2
       },
       "id": 16,
@@ -421,10 +408,12 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "seqrec_use_init_flag{hostname=\"$Hostname\", component_type=\"seqrec\", component_name=\"$ComponentName\"}",
-          "format": "table",
+          "exemplar": false,
+          "expr": "seqrec_use_init_flag{hostname=\"$Hostname\", component_type=\"seqrec\", component_name=~\"$ComponentName\"}",
+          "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
+          "instant": false,
           "legendFormat": "{{component_name}}",
           "range": true,
           "refId": "A",
@@ -509,8 +498,8 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 4,
-        "x": 20,
+        "w": 6,
+        "x": 18,
         "y": 2
       },
       "id": 17,
@@ -536,12 +525,12 @@
           "editorMode": "builder",
           "exemplar": false,
           "expr": "seqrec_use_reset_flag{hostname=\"$Hostname\", component_type=\"seqrec\", component_name=~\"$ComponentName\"}",
-          "format": "table",
+          "format": "time_series",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
-          "instant": true,
+          "instant": false,
           "legendFormat": "{{component_name}}",
-          "range": false,
+          "range": true,
           "refId": "A",
           "useBackend": false
         }
@@ -604,7 +593,7 @@
               }
             ]
           },
-          "unit": "Packets"
+          "unit": "pps"
         },
         "overrides": []
       },
@@ -636,7 +625,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "seqrec_discarded_packets_total{hostname=\"$Hostname\", component_type=~\"$ComponentType\", component_name=~\"$ComponentName\"}",
+          "expr": "rate(seqrec_discarded_packets_total{hostname=\"$Hostname\", component_type=~\"$ComponentType\", component_name=~\"$ComponentName\"}[$__rate_interval])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "{{component_name}}",
@@ -700,7 +689,8 @@
                 "value": 0
               }
             ]
-          }
+          },
+          "unit": "pps"
         },
         "overrides": []
       },
@@ -729,7 +719,7 @@
         {
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "seqrec_passed_packets_total{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"seqrec\"}",
+          "expr": "rate(seqrec_passed_packets_total{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"seqrec\"}[$__rate_interval])",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "legendFormat": "{{component_name}}",
@@ -1146,6 +1136,7 @@
     }
   ],
   "preload": false,
+  "refresh": "auto",
   "schemaVersion": 41,
   "tags": [],
   "templating": {
@@ -1165,19 +1156,16 @@
           "query": "label_values(hostname)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "type": "query"
       },
       {
-        "allValue": "",
         "allowCustomValue": false,
         "current": {
-          "text": [
-            "pef"
-          ],
+          "text": "All",
           "value": [
-            "pef"
+            "$__all"
           ]
         },
         "definition": "label_values(component_name)",
@@ -1191,16 +1179,14 @@
           "query": "label_values(component_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "type": "query"
       },
       {
         "allowCustomValue": false,
         "current": {
-          "text": [
-            "All"
-          ],
+          "text": "All",
           "value": [
             "$__all"
           ]
@@ -1215,19 +1201,15 @@
           "query": "label_values(component_type)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "type": "query"
       },
       {
         "allowCustomValue": false,
         "current": {
-          "text": [
-            "All"
-          ],
-          "value": [
-            "$__all"
-          ]
+          "text": "All",
+          "value": "$__all"
         },
         "definition": "label_values(object_name)",
         "includeAll": true,
@@ -1239,19 +1221,15 @@
           "query": "label_values(object_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "type": "query"
       },
       {
         "allowCustomValue": false,
         "current": {
-          "text": [
-            "All"
-          ],
-          "value": [
-            "$__all"
-          ]
+          "text": "All",
+          "value": "$__all"
         },
         "definition": "label_values(object_type)",
         "includeAll": true,
@@ -1263,19 +1241,19 @@
           "query": "label_values(object_type)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "type": "query"
       }
     ]
   },
   "time": {
-    "from": "2025-10-15T22:22:44.517Z",
-    "to": "2025-10-15T22:25:21.603Z"
+    "from": "now-5m",
+    "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Network Host Details",
   "uid": "7879c02b-400a-4233-bb9b-775daa0793e6",
-  "version": 5
+  "version": 7
 }
