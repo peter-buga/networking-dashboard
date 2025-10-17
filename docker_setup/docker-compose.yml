@@ -76,6 +76,37 @@ services:
       - grafana_data:/var/lib/grafana
     restart: unless-stopped
 
+  forecaster:
+    build:
+      context: ..
+      dockerfile: docker_setup/services/forecaster/Dockerfile
+    container_name: nd-forecaster
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - API_HOST=0.0.0.0
+      - API_PORT=5000
+      - METRICS_EXPORT_PORT=19101
+      - MODEL_CACHE_DIR=/app/models
+      - RETRAIN_INTERVAL=weekly
+      - FORECAST_INTERVAL=300
+      - MAX_WORKERS=8
+      - LOG_LEVEL=INFO
+    ports:
+      - "5000:5000"
+      - "19101:19101"
+    depends_on:
+      - prometheus
+    volumes:
+      - ./forecaster_models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 volumes:
   prometheus_data: {}
   grafana_data: {}
+  forecaster_models: {}
