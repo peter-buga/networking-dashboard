@@ -2,6 +2,7 @@
 from mininet.net import Mininet
 from mininet.cli import CLI
 import time
+from pathlib import Path
 
 """
       ╔═══════╗                             ╔═══════╗
@@ -122,28 +123,29 @@ def main():
     host2.cmd("ip r add default via 10.10.11.1")
 
     # receiver moved to obs (172.20.0.2)
-    import os
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    receiver_path = os.path.join(script_dir, "../json_receiver/multipart_json_udp_receiver.py")
-    obs.popen(
-        f"xterm -T obs_receiver -e python3 {receiver_path} "
-        "172.20.0.2 6000 --metrics-host 0.0.0.0 --metrics-port 9100"
+    repo_root = Path(__file__).resolve().parents[2]  # .../networking-dashboard
+    venv_python = repo_root / ".venv" / "bin" / "python3"
+    receiver_script = repo_root / "app" / "json_receiver" / "multipart_json_udp_receiver.py"
+
+    cmd = (
+        f"xterm -T obs_receiver -hold -e {venv_python} {receiver_script} "
+        f"172.20.0.2 6000 --metrics-host 0.0.0.0 --metrics-port 9100"
     )
+    obs.popen(cmd)
 
     # r2dtwo instances
     if automip:
-        edge1.popen("xterm -T edge1_log -e r2dtwo edge1-automip.ini -h edge1 -v PACKETTRACE:ALL")
-        edge2.popen("xterm -T edge2_log -e r2dtwo edge2-automip.ini -h edge2 -v PACKETTRACE:ALL")
+        edge1.popen("xterm -T edge1_log -hold -e r2dtwo edge1-automip.ini -h edge1 -v PACKETTRACE:ALL")
+        edge2.popen("xterm -T edge2_log -hold -e r2dtwo edge2-automip.ini -h edge2 -v PACKETTRACE:ALL")
     else:
-        edge1.popen("xterm -T edge1_log -e r2dtwo edge1.ini -h edge1 -v PACKETTRACE:ALL")
-        edge2.popen("xterm -T edge2_log -e r2dtwo edge2.ini -h edge2 -v PACKETTRACE:ALL")
+        edge1.popen("xterm -T edge1_log -hold -e r2dtwo edge1.ini -h edge1 -v PACKETTRACE:ALL")
+        edge2.popen("xterm -T edge2_log -hold -e r2dtwo edge2.ini -h edge2 -v PACKETTRACE:ALL")
 
     time.sleep(1)
-    edge1.popen("xterm -T edge1_cmd -e telnet localhost 8000")
-    edge2.popen("xterm -T edge2_cmd -e telnet localhost 8000")
+    edge1.popen("xterm -T edge1_cmd -hold -e telnet localhost 8000")
+    edge2.popen("xterm -T edge2_cmd -hold -e telnet localhost 8000")
 
     host1.popen("xterm -T host1")
-    host2.popen("xterm -T host2")
 
     CLI(net)
     net.stop()
