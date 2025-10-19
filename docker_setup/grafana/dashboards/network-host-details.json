@@ -29,6 +29,337 @@
         "x": 0,
         "y": 0
       },
+      "id": 38,
+      "panels": [],
+      "title": "Replicate",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 35,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "builder",
+          "expr": "rate(replicate_packets_passed_total{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"replicate\"}[$__rate_interval])",
+          "legendFormat": "{{component_name}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Packets Passed",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "o/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "builder",
+          "expr": "rate(replicate_octets_passed_total{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"replicate\"}[$__rate_interval])",
+          "legendFormat": "{{component_name}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Octets Passed",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 36,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "replicate_pipeline_action_count{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"replicate\"}",
+          "legendFormat": "{{component_name}}: {{pipeline_name}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pipeline Action Count",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 37,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "name",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.2.0",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "replicate_pipeline_mask_state{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"replicate\"}",
+          "legendFormat": "{{component_name}}, {{pipeline_name}} : {{state}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pipeline Mask State",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
       "id": 2,
       "panels": [],
       "title": "Overview",
@@ -40,7 +371,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 1
+        "y": 17
       },
       "id": 3,
       "panels": [],
@@ -74,7 +405,7 @@
         "h": 5,
         "w": 3,
         "x": 0,
-        "y": 2
+        "y": 18
       },
       "id": 8,
       "options": {
@@ -138,7 +469,7 @@
         "h": 5,
         "w": 3,
         "x": 3,
-        "y": 2
+        "y": 18
       },
       "id": 9,
       "options": {
@@ -205,7 +536,7 @@
         "h": 5,
         "w": 3,
         "x": 6,
-        "y": 2
+        "y": 18
       },
       "id": 12,
       "options": {
@@ -269,7 +600,7 @@
         "h": 5,
         "w": 3,
         "x": 9,
-        "y": 2
+        "y": 18
       },
       "id": 14,
       "options": {
@@ -386,7 +717,7 @@
         "h": 5,
         "w": 6,
         "x": 12,
-        "y": 2
+        "y": 18
       },
       "id": 16,
       "options": {
@@ -502,7 +833,7 @@
         "h": 5,
         "w": 6,
         "x": 18,
-        "y": 2
+        "y": 18
       },
       "id": 17,
       "options": {
@@ -604,7 +935,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 7
+        "y": 23
       },
       "id": 6,
       "options": {
@@ -702,7 +1033,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 7
+        "y": 23
       },
       "id": 11,
       "options": {
@@ -796,7 +1127,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 7
+        "y": 23
       },
       "id": 10,
       "options": {
@@ -895,7 +1226,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 15
+        "y": 31
       },
       "id": 7,
       "options": {
@@ -989,7 +1320,7 @@
         "h": 8,
         "w": 8,
         "x": 8,
-        "y": 15
+        "y": 31
       },
       "id": 13,
       "options": {
@@ -1083,7 +1414,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 15
+        "y": 31
       },
       "id": 15,
       "options": {
@@ -1122,7 +1453,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 39
       },
       "id": 30,
       "panels": [],
@@ -1194,7 +1525,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 24
+        "y": 40
       },
       "id": 29,
       "options": {
@@ -1288,7 +1619,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 24
+        "y": 40
       },
       "id": 28,
       "options": {
@@ -1382,7 +1713,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 24
+        "y": 40
       },
       "id": 26,
       "options": {
@@ -1483,7 +1814,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 24
+        "y": 40
       },
       "id": 23,
       "options": {
@@ -1543,7 +1874,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 30
+        "y": 46
       },
       "id": 27,
       "options": {
@@ -1566,7 +1897,7 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "editorMode": "code",
+          "editorMode": "builder",
           "expr": "mip_seqrec_seq_recovery_resets_total{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"MIP\", object_name=~\"$InnerObjectName\", object_type=\"seqrec\", stream_name=~\"$StreamName\"}",
           "legendFormat": "{{component_name}}",
           "range": true,
@@ -1603,7 +1934,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 30
+        "y": 46
       },
       "id": 22,
       "options": {
@@ -1667,7 +1998,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 30
+        "y": 46
       },
       "id": 24,
       "options": {
@@ -1765,7 +2096,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 30
+        "y": 46
       },
       "id": 25,
       "options": {
@@ -1859,7 +2190,7 @@
         "h": 6,
         "w": 6,
         "x": 0,
-        "y": 36
+        "y": 52
       },
       "id": 21,
       "options": {
@@ -1915,7 +2246,7 @@
         "h": 6,
         "w": 6,
         "x": 6,
-        "y": 36
+        "y": 52
       },
       "id": 19,
       "options": {
@@ -1939,7 +2270,7 @@
       "targets": [
         {
           "editorMode": "builder",
-          "expr": "mip_seqrec_history_length{component_name=~\"$ComponentName\", hostname=\"$Hostname\", component_type=\"MIP\", object_name=~\"$InnerObjectName\", object_type=~\"$InnerObjectType\", stream_name=~\"$StreamName\"}",
+          "expr": "mip_seqrec_history_length{component_name=~\"$ComponentName\", hostname=\"$Hostname\", component_type=\"MIP\", object_name=~\"$InnerObjectName\", object_type=\"seqrec\", stream_name=~\"$StreamName\"}",
           "legendFormat": "{{hostname}}, {{component_name}}",
           "range": true,
           "refId": "A"
@@ -1979,7 +2310,7 @@
         "h": 6,
         "w": 6,
         "x": 12,
-        "y": 36
+        "y": 52
       },
       "id": 18,
       "options": {
@@ -2003,7 +2334,7 @@
       "targets": [
         {
           "editorMode": "builder",
-          "expr": "mip_seqrec_level{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"MIP\", object_name=~\"$InnerObjectName\", object_type=~\"$InnerObjectType\", stream_name=~\"$StreamName\"}",
+          "expr": "mip_seqrec_level{hostname=\"$Hostname\", component_name=~\"$ComponentName\", component_type=\"MIP\", object_name=~\"$InnerObjectName\", object_type=\"seqrec\", stream_name=~\"$StreamName\"}",
           "legendFormat": "{{hostname}}, {{component_name}}",
           "range": true,
           "refId": "A"
@@ -2043,7 +2374,7 @@
         "h": 6,
         "w": 6,
         "x": 18,
-        "y": 36
+        "y": 52
       },
       "id": 20,
       "options": {
@@ -2107,7 +2438,7 @@
         "h": 7,
         "w": 9,
         "x": 0,
-        "y": 42
+        "y": 58
       },
       "id": 31,
       "options": {
@@ -2218,7 +2549,7 @@
         "h": 7,
         "w": 8,
         "x": 9,
-        "y": 42
+        "y": 58
       },
       "id": 32,
       "options": {
@@ -2325,7 +2656,7 @@
         "h": 7,
         "w": 7,
         "x": 17,
-        "y": 42
+        "y": 58
       },
       "id": 33,
       "options": {
@@ -2360,7 +2691,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 65
       },
       "id": 5,
       "panels": [],
@@ -2512,5 +2843,5 @@
   "timezone": "browser",
   "title": "Network Host Details",
   "uid": "7879c02b-400a-4233-bb9b-775daa0793e6",
-  "version": 2
+  "version": 8
 }
