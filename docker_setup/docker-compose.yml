@@ -59,12 +59,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: nd-grafana
-    environment:
-      - GF_AUTH_ANONYMOUS_ENABLED=true
-      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-      - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
+    user: root
     ports:
       - "3000:3000"
     depends_on:
