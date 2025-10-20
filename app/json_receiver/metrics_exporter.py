@@ -96,6 +96,13 @@ class MetricsExporter:
         self.interface_send_octets_gauge = Gauge('interface_send_octets', 'Number of octets sent on interface', interface_labels)
         self.interface_send_packets_gauge = Gauge('interface_send_packets', 'Number of packets sent on interface', interface_labels)
 
+        #Stream Parsers
+        parser_labels = ['hostname','stream_name']
+        self.parser_no_match_octets_gauge = Gauge('parser_no_match_octets',"Number of no match octets for stream", parser_labels)
+        self.parser_no_match_packets_gauge = Gauge('parser_no_match_packets',"Number of no match packets for stream", parser_labels)
+        self.parser_stream_octets_gauge = Gauge('parser_stream_octets',"Number of stream octets", parser_labels)
+        self.parser_stream_packets_gauge = Gauge('parser_stream_packets',"Number of stream packets", parser_labels)
+        
     def update_notification_metrics(self, json_data: Dict[str, Any]) -> None:
         """Parse notification JSON and update Prometheus metrics."""
         if not self.enabled or json_data is None:
@@ -357,15 +364,24 @@ class MetricsExporter:
                     'component_type': component_type
                 }
                 
-                use_init = 'true' if component_data.get('use_init_flag', False) else 'false'
                 self.seqgen_use_init_flag.labels(**seqgen_labels).set(1 if component_data.get('use_init_flag', False) else 0)
-                
-                use_reset = 'true' if component_data.get('use_reset_flag', False) else 'false'
                 self.seqgen_use_reset_flag.labels(**seqgen_labels).set(1 if component_data.get('use_reset_flag', False) else 0)
             
-            # Handle interface notifications (ifNotify_*)
-            elif component_name.startswith('ifNotify_'):
-                interface_name = component_name.replace('ifNotify_', '')
+            # Handle parsers
+            elif "parser" in component_name:
+                stream_name = component_name.replace(" parser","")
+                parser_labels = {
+                    'hostname': hostname,
+                    'stream_name': stream_name
+                }
+                self.parser_no_match_octets_gauge.labels(**parser_labels).set(component_data.get('no_match_octets', 0))
+                self.parser_no_match_packets_gauge.labels(**parser_labels).set(component_data.get('no_match_packets', 0))
+                self.parser_stream_octets_gauge.labels(**parser_labels).set(component_data.get('stream_octets', 0))
+                self.parser_stream_packets_gauge.labels(**parser_labels).set(component_data.get('stream_packets', 0))
+
+            # Handle interfaces
+            else:
+                interface_name = component_name
                 interface_labels = {
                     'hostname': hostname,
                     'interface_name': interface_name
