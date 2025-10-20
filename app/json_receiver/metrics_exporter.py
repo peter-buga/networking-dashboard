@@ -380,7 +380,7 @@ class MetricsExporter:
                 self.parser_stream_packets_gauge.labels(**parser_labels).set(component_data.get('stream_packets', 0))
 
             # Handle interfaces
-            else:
+            elif all(key in component_data for key in ['recv_octets', 'recv_packets', 'send_octets', 'send_packets']):
                 interface_name = component_name
                 interface_labels = {
                     'hostname': hostname,
