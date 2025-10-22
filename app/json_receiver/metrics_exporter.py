@@ -390,10 +390,25 @@ class MetricsExporter:
                     'hostname': hostname,
                     'stream_name': stream_name
                 }
-                self.parser_no_match_octets_gauge.labels(**parser_labels).set(component_data.get('no_match_octets', 0))
-                self.parser_no_match_packets_gauge.labels(**parser_labels).set(component_data.get('no_match_packets', 0))
-                self.parser_stream_octets_gauge.labels(**parser_labels).set(component_data.get('stream_octets', 0))
-                self.parser_stream_packets_gauge.labels(**parser_labels).set(component_data.get('stream_packets', 0))
+                self.parser_no_match_octets_gauge.labels(**parser_labels).set(component_data.get('no match octets', 0))
+                self.parser_no_match_packets_gauge.labels(**parser_labels).set(component_data.get('no match packets', 0))
+
+                for key, value in component_data.items():
+                    # skip the already-handled keys
+                    if key in ('no match octets', 'no match packets'):
+                        continue
+
+                    if key.endswith(' octets'):
+                        stream = key[:-len(' octets')]
+                        stream = stream.strip()
+                        self.parser_stream_octets_gauge.labels(hostname=hostname, stream_name=stream).set(int(value))
+
+                    elif key.endswith(' packets'):
+                        stream = key[:-len(' packets')]
+                        stream = stream.strip()
+                   
+                        self.parser_stream_packets_gauge.labels(hostname=hostname, stream_name=stream).set(int(value))
+      
 
             # Handle interfaces
             elif all(key in component_data for key in ['recv_octets', 'recv_packets', 'send_octets', 'send_packets']):

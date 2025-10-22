@@ -2488,7 +2488,7 @@
         "textMode": "name",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "editorMode": "builder",
@@ -2535,7 +2535,6 @@
               "type": "linear"
             },
             "showPoints": "auto",
-            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -2595,7 +2594,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "editorMode": "code",
@@ -2642,7 +2641,6 @@
               "type": "linear"
             },
             "showPoints": "auto",
-            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -2702,7 +2700,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "editorMode": "code",
@@ -3482,7 +3480,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "editorMode": "builder",
@@ -3546,7 +3544,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "editorMode": "code",
@@ -3610,7 +3608,7 @@
         "textMode": "name",
         "wideLayout": true
       },
-      "pluginVersion": "12.2.0",
+      "pluginVersion": "12.1.1",
       "targets": [
         {
           "editorMode": "builder",
@@ -3881,7 +3879,7 @@
               }
             ]
           },
-          "unit": "packets"
+          "unit": "packet"
         },
         "overrides": []
       },
@@ -3891,7 +3889,7 @@
         "x": 0,
         "y": 123
       },
-      "id": 56,
+      "id": 58,
       "options": {
         "legend": {
           "calcs": [],
@@ -3909,13 +3907,13 @@
       "targets": [
         {
           "editorMode": "builder",
-          "expr": "parser_no_match_packets{hostname=\"$Hostname\", stream_name=~\"$StreamName\"}",
+          "expr": "parser_stream_packets{hostname=\"$Hostname\", stream_name=~\"$StreamName\"}",
           "legendFormat": "{{stream_name}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "No Match Packets",
+      "title": "Packets - Total",
       "type": "timeseries"
     },
     {
@@ -3975,7 +3973,7 @@
               }
             ]
           },
-          "unit": "packet"
+          "unit": "packets"
         },
         "overrides": []
       },
@@ -3985,7 +3983,7 @@
         "x": 12,
         "y": 123
       },
-      "id": 58,
+      "id": 56,
       "options": {
         "legend": {
           "calcs": [],
@@ -4003,13 +4001,13 @@
       "targets": [
         {
           "editorMode": "builder",
-          "expr": "parser_stream_packets{hostname=\"$Hostname\", stream_name=~\"$StreamName\"}",
+          "expr": "parser_no_match_packets{hostname=\"$Hostname\", stream_name=~\"$StreamName\"}",
           "legendFormat": "{{stream_name}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Packets - Total",
+      "title": "No Match Packets",
       "type": "timeseries"
     },
     {
@@ -4396,5 +4394,5 @@
   "timezone": "browser",
   "title": "Network Host Details",
   "uid": "7879c02b-400a-4233-bb9b-775daa0793e6",
-  "version": 2
+  "version": 3
 }
