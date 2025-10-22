@@ -1,0 +1,203 @@
+2025-10-15 22:19:28,593 - __main__ - INFO - JSON receiver server started on 172.20.0.2 : 6000
+2025-10-15 22:19:29,521 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:19:29,521 - __main__ - INFO - {
+    "notif_hostname": "edge1",
+    "notif_msg": {
+        "push_level": "INFO",
+        "telnet": {
+            "ip": "::ffff:127.0.0.1",
+            "login": "conn 13",
+            "port": 40848
+        }
+    },
+    "notif_seq": 2,
+    "notif_tstamp": 1760559569.5209997
+}
+2025-10-15 22:19:29,521 - __main__ - INFO - ........... End ...........
+2025-10-15 22:19:29,521 - __main__ - INFO - Message count: 0
+2025-10-15 22:19:29,558 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:19:29,558 - __main__ - INFO - {
+    "notif_hostname": "edge2",
+    "notif_msg": {
+        "push_level": "INFO",
+        "telnet": {
+            "ip": "::ffff:127.0.0.1",
+            "login": "conn 10",
+            "port": 40858
+        }
+    },
+    "notif_seq": 2,
+    "notif_tstamp": 1760559569.5579562
+}
+2025-10-15 22:19:29,558 - __main__ - INFO - ........... End ...........
+2025-10-15 22:19:29,558 - __main__ - INFO - Message count: 1
+2025-10-15 22:19:30,693 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:19:30,693 - __main__ - INFO - {
+    "notif_hostname": "edge1",
+    "notif_msg": {
+        "push_level": "INFO",
+        "seq_rcvy": {
+            "message": "recovery reset",
+            "source": "pef"
+        }
+    },
+    "notif_seq": 3,
+    "notif_tstamp": 1760559570.6932037
+}
+2025-10-15 22:19:30,693 - __main__ - INFO - ........... End ...........
+2025-10-15 22:19:30,694 - __main__ - INFO - Message count: 2
+2025-10-15 22:19:30,735 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:19:30,735 - __main__ - INFO - {
+    "notif_hostname": "edge2",
+    "notif_msg": {
+        "push_level": "INFO",
+        "seq_rcvy": {
+            "message": "recovery reset",
+            "source": "pef"
+        }
+    },
+    "notif_seq": 3,
+    "notif_tstamp": 1760559570.73487
+}
+2025-10-15 22:19:30,735 - __main__ - INFO - ........... End ...........
+2025-10-15 22:19:30,735 - __main__ - INFO - Message count: 3
+2025-10-15 22:21:30,619 - __main__ - INFO - JSON receiver server started on 172.20.0.2 : 6000
+2025-10-15 22:21:31,599 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:21:31,599 - __main__ - INFO - {
+    "notif_hostname": "edge1",
+    "notif_msg": {
+        "push_level": "INFO",
+        "telnet": {
+            "ip": "::ffff:127.0.0.1",
+            "login": "conn 13",
+            "port": 40152
+        }
+    },
+    "notif_seq": 2,
+    "notif_tstamp": 1760559691.59892
+}
+2025-10-15 22:21:31,599 - __main__ - INFO - ........... End ...........
+2025-10-15 22:21:31,599 - __main__ - INFO - Message count: 0
+2025-10-15 22:21:31,606 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:21:31,607 - __main__ - INFO - {
+    "notif_hostname": "edge2",
+    "notif_msg": {
+        "push_level": "INFO",
+        "telnet": {
+            "ip": "::ffff:127.0.0.1",
+            "login": "conn 10",
+            "port": 40162
+        }
+    },
+    "notif_seq": 2,
+    "notif_tstamp": 1760559691.6066155
+}
+2025-10-15 22:21:31,607 - __main__ - INFO - ........... End ...........
+2025-10-15 22:21:31,607 - __main__ - INFO - Message count: 1
+2025-10-15 22:21:32,729 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:21:32,729 - __main__ - INFO - {
+    "notif_hostname": "edge2",
+    "notif_msg": {
+        "push_level": "INFO",
+        "seq_rcvy": {
+            "message": "recovery reset",
+            "source": "pef"
+        }
+    },
+    "notif_seq": 3,
+    "notif_tstamp": 1760559692.7294643
+}
+2025-10-15 22:21:32,730 - __main__ - INFO - ........... End ...........
+2025-10-15 22:21:32,730 - __main__ - INFO - Message count: 2
+2025-10-15 22:21:32,732 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:21:32,732 - __main__ - INFO - {
+    "notif_hostname": "edge1",
+    "notif_msg": {
+        "push_level": "INFO",
+        "seq_rcvy": {
+            "message": "recovery reset",
+            "source": "pef"
+        }
+    },
+    "notif_seq": 3,
+    "notif_tstamp": 1760559692.7323515
+}
+2025-10-15 22:21:32,732 - __main__ - INFO - ........... End ...........
+2025-10-15 22:21:32,732 - __main__ - INFO - Message count: 3
+2025-10-15 22:21:54,001 - __main__ - ERROR - Fatal error: 'NoneType' object has no attribute 'get'
+Traceback (most recent call last):
+  File "/home/peti/networking-dashboard/app/scenario_notification/../json_receiver/multipart_json_udp_receiver.py", line 167, in <module>
+    main()
+  File "/home/peti/networking-dashboard/app/scenario_notification/../json_receiver/multipart_json_udp_receiver.py", line 155, in main
+    metrics.update_notification_metrics(json_received)
+  File "/home/peti/networking-dashboard/app/json_receiver/metrics_exporter.py", line 104, in update_notification_metrics
+    hostname = json_data.get('notif_hostname', 'unknown')
+               ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get'
+2025-10-15 22:22:05,097 - __main__ - INFO - Ctrl+C pressed, exiting.
+2025-10-15 22:23:36,080 - __main__ - INFO - JSON receiver server started on 172.20.0.2 : 6000
+2025-10-15 22:23:37,010 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:23:37,011 - __main__ - INFO - {
+    "notif_hostname": "edge2",
+    "notif_msg": {
+        "push_level": "INFO",
+        "telnet": {
+            "ip": "::ffff:127.0.0.1",
+            "login": "conn 11",
+            "port": 58706
+        }
+    },
+    "notif_seq": 2,
+    "notif_tstamp": 1760559817.010691
+}
+2025-10-15 22:23:37,011 - __main__ - INFO - ........... End ...........
+2025-10-15 22:23:37,011 - __main__ - INFO - Message count: 0
+2025-10-15 22:23:37,053 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:23:37,053 - __main__ - INFO - {
+    "notif_hostname": "edge1",
+    "notif_msg": {
+        "push_level": "INFO",
+        "telnet": {
+            "ip": "::ffff:127.0.0.1",
+            "login": "conn 13",
+            "port": 58720
+        }
+    },
+    "notif_seq": 2,
+    "notif_tstamp": 1760559817.0527976
+}
+2025-10-15 22:23:37,053 - __main__ - INFO - ........... End ...........
+2025-10-15 22:23:37,053 - __main__ - INFO - Message count: 1
+2025-10-15 22:23:38,193 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:23:38,193 - __main__ - INFO - {
+    "notif_hostname": "edge1",
+    "notif_msg": {
+        "push_level": "INFO",
+        "seq_rcvy": {
+            "message": "recovery reset",
+            "source": "pef"
+        }
+    },
+    "notif_seq": 3,
+    "notif_tstamp": 1760559818.192804
+}
+2025-10-15 22:23:38,193 - __main__ - INFO - ........... End ...........
+2025-10-15 22:23:38,193 - __main__ - INFO - Message count: 2
+2025-10-15 22:23:38,193 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:23:38,193 - __main__ - INFO - {
+    "notif_hostname": "edge2",
+    "notif_msg": {
+        "push_level": "INFO",
+        "seq_rcvy": {
+            "message": "recovery reset",
+            "source": "pef"
+        }
+    },
+    "notif_seq": 3,
+    "notif_tstamp": 1760559818.1934566
+}
+2025-10-15 22:23:38,193 - __main__ - INFO - ........... End ...........
+2025-10-15 22:23:38,193 - __main__ - INFO - Message count: 3
+2025-10-15 22:23:46,001 - __main__ - INFO - ========== Notification ==========
+2025-10-15 22:23:46,001 - __main__ - INFO - {
+    "notif_seq": 4,

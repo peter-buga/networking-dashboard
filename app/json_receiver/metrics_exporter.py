@@ -1,5 +1,7 @@
 from prometheus_client import Counter, Gauge, Enum, start_http_server
 from typing import Optional, Dict, Any
+import json
+import datetime
 
 class MetricsExporter:
     """Encapsulate Prometheus metrics registration and updates."""
@@ -102,6 +104,11 @@ class MetricsExporter:
         self.parser_no_match_packets_gauge = Gauge('parser_no_match_packets',"Number of no match packets for stream", parser_labels)
         self.parser_stream_octets_gauge = Gauge('parser_stream_octets',"Number of stream octets", parser_labels)
         self.parser_stream_packets_gauge = Gauge('parser_stream_packets',"Number of stream packets", parser_labels)
+
+        #Push notifications
+        push_labels = ['hostname', 'level', 'content', 'time']
+        self.push_notifications_counter = Counter('push_notifications', 'Number of push level notifications', push_labels)
+        
         
     def update_notification_metrics(self, json_data: Dict[str, Any]) -> None:
         """Parse notification JSON and update Prometheus metrics."""
@@ -110,6 +117,15 @@ class MetricsExporter:
         
         hostname = json_data.get('notif_hostname', 'unknown')
         notif_msg = json_data.get('notif_msg', {})
+
+        # Handle push notifications
+        if 'push_level' in notif_msg:
+            level = notif_msg['push_level']
+            content_dict = {k: v for k, v in notif_msg.items() if k != 'push_level'}
+            content = json.dumps(content_dict)
+            time = datetime.datetime.fromtimestamp(float(json_data.get('notif_tstamp', 0))).strftime('%Y-%m-%d %H:%M:%S')
+            self.push_notifications_counter.labels(hostname=hostname, level=level, content=content, time=time).inc()
+
         
         for component_name, component_data in notif_msg.items():
             if not isinstance(component_data, dict):
@@ -366,7 +382,7 @@ class MetricsExporter:
                 
                 self.seqgen_use_init_flag.labels(**seqgen_labels).set(1 if component_data.get('use_init_flag', False) else 0)
                 self.seqgen_use_reset_flag.labels(**seqgen_labels).set(1 if component_data.get('use_reset_flag', False) else 0)
-            
+                
             # Handle parsers
             elif "parser" in component_name:
                 stream_name = component_name.replace(" parser","")
