@@ -1,279 +1,320 @@
-"""
-LSTM forecaster for time series prediction using Keras.
-"""
+"""Minimal LSTM-based forecaster implementation following the project plan."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Dict, Iterable, List, Optional, Tuple
+
 import numpy as np
-from typing import Tuple, Optional, Dict, List
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-import keras
-from keras import layers, models, callbacks
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from tensorflow import keras
+from tensorflow.keras import layers
+import joblib
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ModelBundle:
+	model: keras.Model
+	scaler: StandardScaler
+	metadata: Dict[str, object]
 
 
 class LSTMForecaster:
-    """LSTM-based time series forecaster using Keras."""
-    
-    def __init__(
-        self,
-        sequence_length: int = 24,
-        forecast_horizon: int = 6,
-        lstm_units: int = 64,
-        dropout_rate: float = 0.2,
-        learning_rate: float = 0.001
-    ):
-        """
-        Initialize LSTM forecaster.
-        
-        Args:
-            sequence_length: Number of past time steps to use for prediction
-            forecast_horizon: Number of steps to forecast into the future
-            lstm_units: Number of units in LSTM layers
-            dropout_rate: Dropout rate for regularization
-            learning_rate: Learning rate for optimizer
-        """
-        self.sequence_length = sequence_length
-        self.forecast_horizon = forecast_horizon
-        self.lstm_units = lstm_units
-        self.dropout_rate = dropout_rate
-        self.learning_rate = learning_rate
-        
-        self.model = None
-        self.scaler = MinMaxScaler(feature_range=(0, 1))
-        self.is_fitted = False
-        self.training_history = None
-    
-    def _create_sequences(
-        self,
-        data: np.ndarray,
-        seq_length: int,
-        forecast_len: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Create sequences for LSTM training.
-        
-        Args:
-            data: 1D array of values
-            seq_length: Length of input sequences
-            forecast_len: Length of forecast target
-        
-        Returns:
-            Tuple of (X, y) where X is input sequences and y is targets
-        """
-        X, y = [], []
-        
-        for i in range(len(data) - seq_length - forecast_len + 1):
-            X.append(data[i:i + seq_length])
-            y.append(data[i + seq_length:i + seq_length + forecast_len])
-        
-        return np.array(X), np.array(y)
-    
-    def _prepare_data(
-        self,
-        values: np.ndarray,
-        test_split: float = 0.2
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Prepare and normalize data for training.
-        
-        Args:
-            values: 1D array of time series values
-            test_split: Fraction of data to use for testing
-        
-        Returns:
-            Tuple of (X_train, y_train, X_test, y_test, original_values)
-        """
-        # Remove NaN values
-        clean_values = values[~np.isnan(values)]
-        
-        if len(clean_values) < self.sequence_length + self.forecast_horizon:
-            raise ValueError(
-                f"Not enough data. Need at least {self.sequence_length + self.forecast_horizon} "
-                f"points, got {len(clean_values)}"
-            )
-        
-        # Normalize data
-        scaled_values = self.scaler.fit_transform(clean_values.reshape(-1, 1)).flatten()
-        
-        # Create sequences
-        X, y = self._create_sequences(
-            scaled_values,
-            self.sequence_length,
-            self.forecast_horizon
-        )
-        
-        # Split into train and test
-        split_idx = int(len(X) * (1 - test_split))
-        X_train, X_test = X[:split_idx], X[split_idx:]
-        y_train, y_test = y[:split_idx], y[split_idx:]
-        
-        # Reshape for LSTM [samples, timesteps, features]
-        X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
-        X_test = X_test.reshape((X_test.shape[0], X_test.shape[1], 1))
-        
-        return X_train, y_train, X_test, y_test, clean_values
-    
-    def build_model(self):
-        """Build the LSTM neural network model."""
-        model = models.Sequential([
-            layers.Input(shape=(self.sequence_length, 1)),
-            layers.LSTM(
-                self.lstm_units,
-                activation='relu',
-                return_sequences=True
-            ),
-            layers.Dropout(self.dropout_rate),
-            layers.LSTM(self.lstm_units, activation='relu'),
-            layers.Dropout(self.dropout_rate),
-            layers.Dense(32, activation='relu'),
-            layers.Dropout(self.dropout_rate),
-            layers.Dense(self.forecast_horizon)
-        ])
-        
-        optimizer = keras.optimizers.Adam(learning_rate=self.learning_rate)
-        model.compile(
-            optimizer=optimizer,
-            loss='mse',
-            metrics=['mae']
-        )
-        
-        self.model = model
-        return model
-    
-    def fit(
-        self,
-        values: np.ndarray,
-        epochs: int = 50,
-        batch_size: int = 32,
-        validation_split: float = 0.2,
-        early_stopping: bool = True,
-        verbose: int = 1
-    ) -> Dict:
-        """
-        Train the LSTM model.
-        
-        Args:
-            values: Time series data to train on
-            epochs: Number of training epochs
-            batch_size: Batch size for training
-            validation_split: Fraction of data to use for validation
-            early_stopping: Whether to use early stopping
-            verbose: Verbosity level
-        
-        Returns:
-            Dictionary with training metrics
-        """
-        if self.model is None:
-            self.build_model()
-        
-        X_train, y_train, X_test, y_test, clean_values = self._prepare_data(
-            values,
-            test_split=0.2
-        )
-        
-        # Prepare callbacks
-        cb_list = []
-        if early_stopping:
-            cb_list.append(
-                callbacks.EarlyStopping(
-                    monitor='val_loss',
-                    patience=10,
-                    restore_best_weights=True,
-                    verbose=verbose
-                )
-            )
-        
-        cb_list.append(
-            callbacks.ReduceLROnPlateau(
-                monitor='val_loss',
-                factor=0.5,
-                patience=5,
-                min_lr=1e-6,
-                verbose=verbose
-            )
-        )
-        
-        # Train the model
-        history = self.model.fit(
-            X_train, y_train,
-            epochs=epochs,
-            batch_size=batch_size,
-            validation_split=validation_split,
-            callbacks=cb_list,
-            verbose=verbose
-        )
-        
-        self.training_history = history.history
-        self.is_fitted = True
-        
-        # Evaluate on test set
-        y_pred_train = self.model.predict(X_train, verbose=0)
-        y_pred_test = self.model.predict(X_test, verbose=0)
-        
-        # Inverse transform predictions for metrics
-        y_pred_train_original = self.scaler.inverse_transform(y_pred_train)
-        y_pred_test_original = self.scaler.inverse_transform(y_pred_test)
-        y_train_original = self.scaler.inverse_transform(y_train)
-        y_test_original = self.scaler.inverse_transform(y_test)
-        
-        metrics = {
-            'train_mse': float(np.mean((y_pred_train_original - y_train_original) ** 2)),
-            'test_mse': float(np.mean((y_pred_test_original - y_test_original) ** 2)),
-            'train_mae': float(np.mean(np.abs(y_pred_train_original - y_train_original))),
-            'test_mae': float(np.mean(np.abs(y_pred_test_original - y_test_original))),
-            'train_r2': float(r2_score(y_train_original.flatten(), y_pred_train_original.flatten())),
-            'test_r2': float(r2_score(y_test_original.flatten(), y_pred_test_original.flatten()))
-        }
-        
-        return metrics
-    
-    def predict(self, values: np.ndarray, steps_ahead: Optional[int] = None) -> np.ndarray:
-        """
-        Make predictions for future time steps.
-        
-        Args:
-            values: Historical time series data
-            steps_ahead: Number of steps to predict ahead (uses forecast_horizon if None)
-        
-        Returns:
-            Array of predictions
-        """
-        if self.model is None or not self.is_fitted:
-            raise ValueError("Model must be fitted before making predictions")
-        
-        if steps_ahead is None:
-            steps_ahead = self.forecast_horizon
-        
-        # Clean and normalize the data
-        clean_values = values[~np.isnan(values)]
-        scaled_values = self.scaler.transform(clean_values.reshape(-1, 1)).flatten()
-        
-        # Use last sequence_length points for initial prediction
-        current_seq = scaled_values[-self.sequence_length:].reshape(1, self.sequence_length, 1)
-        
-        predictions = []
-        
-        for _ in range(steps_ahead):
-            # Predict next value
-            next_pred = self.model.predict(current_seq, verbose=0)[0]
-            predictions.append(next_pred)
-            
-            # Update sequence for next iteration (use mean of forecast_horizon predictions)
-            next_val = next_pred[0] if self.forecast_horizon > 1 else next_pred[0]
-            current_seq = np.append(current_seq[0, 1:, 0], next_val)
-            current_seq = current_seq.reshape(1, self.sequence_length, 1)
-        
-        # Convert predictions to array and inverse transform
-        predictions = np.array(predictions)
-        predictions_original = self.scaler.inverse_transform(predictions)
-        
-        return predictions_original.flatten()
-    
-    def save_model(self, filepath: str):
-        """Save model to file."""
-        if self.model is None:
-            raise ValueError("No model to save")
-        self.model.save(filepath)
-    
-    def load_model(self, filepath: str):
-        """Load model from file."""
-        self.model = keras.models.load_model(filepath)
-        self.is_fitted = True
+	def __init__(self) -> None:
+		self.lookback_minutes = int(os.getenv('FORECAST_LOOKBACK_MINUTES', 180))
+		self.horizon_minutes = int(os.getenv('FORECAST_HORIZON_MINUTES', 180))
+		self.retrain_days = int(os.getenv('FORECAST_RETRAIN_DAYS', 7))
+		self.cadence_seconds = int(os.getenv('FORECAST_CADENCE_SECONDS', 15))
+		self.max_parallel_jobs = int(os.getenv('FORECAST_MAX_CONCURRENCY', 10))
+		clip_sigma = os.getenv('FORECAST_CLIP_Z')
+		self.clip_sigma = float(clip_sigma) if clip_sigma else None
+		model_dir = os.getenv('FORECAST_MODEL_DIR') or Path(__file__).resolve().parents[2] / 'docker_setup' / 'forecaster_models'
+		self.model_dir = Path(model_dir)
+		self.model_dir.mkdir(parents=True, exist_ok=True)
+		self._cache: Dict[Tuple[str, str], ModelBundle] = {}
+		logger.info(
+			"LSTMForecaster initialised (lookback=%sm horizon=%sm cadence=%ss models=%s)",
+			self.lookback_minutes,
+			self.horizon_minutes,
+			self.cadence_seconds,
+			self.model_dir,
+		)
+
+	# --- Public helpers -------------------------------------------------
+	def train(self, metric: str, labels: Dict[str, str], history: pd.DataFrame) -> Dict[str, object]:
+		label_hash = self._label_hash(labels)
+		logger.info("Training started for %s/%s (samples=%d)", metric, label_hash, len(history))
+		series = self._preprocess(history)
+		lookback_steps = self._lookback_steps()
+		if len(series) < lookback_steps + self._horizon_steps():
+			raise ValueError('Not enough datapoints to train model')
+
+		X, y = self._build_windows(series, lookback_steps)
+		scaler = StandardScaler()
+		scaled_matrix = scaler.fit_transform(X.reshape(X.shape[0], -1)).astype(np.float32)
+		X_scaled = scaled_matrix.reshape(X.shape[0], lookback_steps, 1)
+
+		split_idx = max(1, int(len(X_scaled) * 0.8))
+		X_train, X_val = X_scaled[:split_idx], X_scaled[split_idx:]
+		y_train = y[:split_idx].astype(np.float32)
+		y_val = y[split_idx:].astype(np.float32)
+
+		model = self._build_model(lookback_steps)
+		epochs = int(os.getenv('FORECAST_TRAIN_EPOCHS', 5))
+		batch_size = int(os.getenv('FORECAST_BATCH_SIZE', 32))
+		verbose = 0 if os.getenv('FORECAST_TRAIN_QUIET', '1') == '1' else 1
+		model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
+
+		if len(X_val) > 0:
+			predictions = model.predict(X_val, verbose=0).flatten()
+			residuals = predictions - y_val
+		else:
+			predictions = model.predict(X_train, verbose=0).flatten()
+			residuals = predictions - y_train
+
+		rmse = float(np.sqrt(np.mean(np.square(residuals))))
+		residual_std = float(np.std(residuals))
+
+		metadata = {
+			'metric': metric,
+			'labels': labels,
+			'label_hash': label_hash,
+			'version': self._new_version_identifier(),
+			'trained_at': datetime.now(timezone.utc).isoformat(),
+			'lookback_minutes': self.lookback_minutes,
+			'horizon_minutes': self.horizon_minutes,
+			'rmse': rmse,
+			'residual_std': residual_std,
+		}
+
+		promoted = self._save_bundle(metric, metadata['label_hash'], ModelBundle(model, scaler, metadata))
+		logger.info(
+			"Training completed for %s/%s version=%s rmse=%.4f promoted=%s",
+			metric,
+			label_hash,
+			metadata['version'],
+			rmse,
+			promoted,
+		)
+		metadata['promoted'] = promoted
+		return metadata
+
+	def predict(self, metric: str, labels: Dict[str, str], history: pd.DataFrame) -> Dict[str, object]:
+		bundle = self._ensure_bundle(metric, labels)
+		if bundle is None:
+			raise FileNotFoundError('Model not trained for given metric/labels')
+
+		series = self._preprocess(history).tail(self._lookback_steps())
+		if len(series) < self._lookback_steps():
+			raise ValueError('Insufficient history for prediction window')
+
+		window = series.values.astype(np.float32).reshape(1, -1)
+		scaled_matrix = bundle.scaler.transform(window).astype(np.float32)
+		scaled = scaled_matrix.reshape(1, self._lookback_steps(), 1)
+		point_forecast = float(bundle.model.predict(scaled, verbose=0).flatten()[0])
+		std = float(bundle.metadata.get('residual_std') or 0.0)
+		if std > 0:
+			delta = 1.96 * std
+			confidence_interval = (point_forecast - delta, point_forecast + delta)
+		else:
+			confidence_interval = None
+
+		logger.debug(
+			"Predicted value for %s/%s -> %.3f (ci=%s)",
+			metric,
+			bundle.metadata['label_hash'],
+			point_forecast,
+			confidence_interval,
+		)
+
+		return {
+			'metric': metric,
+			'labels': labels,
+			'point_forecast': point_forecast,
+			'confidence_interval': confidence_interval,
+			'model_version': bundle.metadata['version'],
+		}
+
+	def load_model(self, metric: str, labels: Dict[str, str]) -> Optional[Dict[str, object]]:
+		bundle = self._ensure_bundle(metric, labels)
+		if bundle is None:
+			return None
+		return bundle.metadata
+
+	def has_model(self, metric: str, labels: Dict[str, str]) -> bool:
+		return self._ensure_bundle(metric, labels) is not None
+
+	def list_models(self, metric: Optional[str] = None) -> List[Dict[str, object]]:
+		results: List[Dict[str, object]] = []
+		root = self.model_dir if metric is None else self.model_dir / metric
+		if not root.exists():
+			return results
+		for metric_dir in (root.iterdir() if metric is None else [root]):
+			if not metric_dir.is_dir():
+				continue
+			for label_dir in metric_dir.iterdir():
+				if not label_dir.is_dir():
+					continue
+				latest = label_dir / 'latest.json'
+				if latest.exists():
+					try:
+						results.append(json.loads(latest.read_text()))
+					except Exception as exc:  # pragma: no cover - IO edge
+						logger.warning("Failed to read metadata for %s: %s", label_dir, exc)
+		return results
+
+	def clear_cache(self) -> None:
+		self._cache.clear()
+		logger.debug("Forecaster cache cleared")
+
+	def lookback_points(self) -> int:
+		return self._lookback_steps()
+
+	def horizon_points(self) -> int:
+		return self._horizon_steps()
+
+	# --- Internal helpers -----------------------------------------------
+	def _preprocess(self, history: pd.DataFrame) -> pd.Series:
+		if history.empty:
+			return pd.Series(dtype=float)
+		df = history.copy()
+		df['timestamp'] = pd.to_datetime(df['timestamp'], utc=True)
+		df = df.sort_values('timestamp').set_index('timestamp')
+		target = df['value'].astype(float)
+		resampled = target.resample(f'{self.cadence_seconds}s').mean()
+		resampled = resampled.ffill(limit=4).bfill(limit=4)
+		if self.clip_sigma is not None and len(resampled) > 0:
+			clipped = resampled.clip(resampled.mean() - self.clip_sigma * resampled.std(), resampled.mean() + self.clip_sigma * resampled.std())
+		else:
+			clipped = resampled
+		return clipped.ffill().bfill().astype(np.float32)
+
+	def _build_windows(self, series: pd.Series, lookback_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+		values = series.values.astype(np.float32)
+		horizon_steps = self._horizon_steps()
+		X: List[np.ndarray] = []
+		y: List[float] = []
+		for idx in range(lookback_steps, len(values) - horizon_steps + 1):
+			window = values[idx - lookback_steps:idx]
+			target = values[idx: idx + horizon_steps].mean()
+			X.append(window)
+			y.append(target)
+		if not X:
+			raise ValueError('Unable to build training windows for provided series')
+		X_array = np.array(X, dtype=np.float32)
+		y_array = np.array(y, dtype=np.float32)
+		return X_array[:, :, np.newaxis], y_array
+
+	def _build_model(self, lookback_steps: int) -> keras.Model:
+		model = keras.Sequential([
+			layers.Input(shape=(lookback_steps, 1)),
+			layers.LSTM(64, return_sequences=True),
+			layers.Dropout(0.2),
+			layers.LSTM(32),
+			layers.Dense(32, activation='relu'),
+			layers.Dense(1, activation='softplus'),
+		])
+		model.compile(optimizer=keras.optimizers.Adam(learning_rate=1e-3), loss='mse', metrics=['mae'])
+		return model
+
+	def _ensure_bundle(self, metric: str, labels: Dict[str, str]) -> Optional[ModelBundle]:
+		key = (metric, self._label_hash(labels))
+		if key in self._cache:
+			return self._cache[key]
+		bundle = self._load_bundle(metric, labels)
+		if bundle:
+			self._cache[key] = bundle
+		return bundle
+
+	def _load_bundle(self, metric: str, labels: Dict[str, str]) -> Optional[ModelBundle]:
+		label_hash = self._label_hash(labels)
+		label_dir = self.model_dir / metric / label_hash
+		latest_file = label_dir / 'latest.json'
+		if not latest_file.exists():
+			return None
+		try:
+			metadata = json.loads(latest_file.read_text())
+		except json.JSONDecodeError:
+			logger.warning("Corrupt metadata for %s", label_dir)
+			return None
+		version_dir = label_dir / metadata['version']
+		if not version_dir.exists():
+			logger.warning("Missing artifact directory %s", version_dir)
+			return None
+		model_path = version_dir / 'model.keras'
+		scaler_path = version_dir / 'scaler.pkl'
+		if not model_path.exists() or not scaler_path.exists():
+			logger.warning("Incomplete artifacts for %s", version_dir)
+			return None
+		model = keras.models.load_model(model_path)
+		scaler = self._load_scaler(scaler_path)
+		return ModelBundle(model=model, scaler=scaler, metadata=metadata)
+
+	def _save_bundle(self, metric: str, label_hash: str, bundle: ModelBundle) -> bool:
+		label_dir = self.model_dir / metric / label_hash
+		version_dir = label_dir / bundle.metadata['version']
+		version_dir.mkdir(parents=True, exist_ok=True)
+
+		bundle.model.save(version_dir / 'model.keras', include_optimizer=False)
+		self._save_scaler(version_dir / 'scaler.pkl', bundle.scaler)
+		(version_dir / 'metadata.json').write_text(json.dumps(bundle.metadata, indent=2))
+
+		latest_meta = self._load_latest_metadata(label_dir)
+		promoted = False
+		if latest_meta is None or bundle.metadata['rmse'] <= latest_meta.get('rmse', float('inf')):
+			promoted = True
+			latest_file = label_dir / 'latest.json'
+			latest_file.write_text(json.dumps(bundle.metadata, indent=2))
+			cache_key = (metric, label_hash)
+			self._cache[cache_key] = bundle
+		else:
+			logger.info(
+				"New model for %s/%s not promoted; rmse %.4f worse than %.4f",
+				metric,
+				label_hash,
+				bundle.metadata['rmse'],
+				latest_meta.get('rmse'),
+			)
+		return promoted
+
+	def _load_latest_metadata(self, label_dir: Path) -> Optional[Dict[str, object]]:
+		latest_file = label_dir / 'latest.json'
+		if latest_file.exists():
+			try:
+				return json.loads(latest_file.read_text())
+			except json.JSONDecodeError:
+				logger.warning("Failed to parse %s", latest_file)
+		return None
+
+	def _save_scaler(self, path: Path, scaler: StandardScaler) -> None:
+		joblib.dump(scaler, path)
+
+	def _load_scaler(self, path: Path) -> StandardScaler:
+		return joblib.load(path)
+
+	def _label_hash(self, labels: Dict[str, str]) -> str:
+		"""Create a deterministic, filesystem-safe hash for a label set."""
+		filtered = {str(k): str(v) for k, v in labels.items() if k != '__name__'}
+		if not filtered:
+			return 'default'
+		canonical = json.dumps(filtered, sort_keys=True, separators=(',', ':'))
+		return hashlib.sha1(canonical.encode('utf-8')).hexdigest()[:16]
+
+	def _lookback_steps(self) -> int:
+		return max(1, int((self.lookback_minutes * 60) / self.cadence_seconds))
+
+	def _horizon_steps(self) -> int:
+		return max(1, int((self.horizon_minutes * 60) / self.cadence_seconds))
+
+	def _new_version_identifier(self) -> str:
+		now = datetime.now(timezone.utc)
+		return now.strftime('v%Y%m%d-%H%M')

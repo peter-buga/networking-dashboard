@@ -1,412 +1,219 @@
-"""
-Main forecasting application combining Prometheus data retrieval and LSTM prediction.
-"""
-import json
-import numpy as np
-from typing import Dict, List, Optional
-from datetime import datetime, timedelta
-from prometheus_client import start_http_server, Gauge
+"""Orchestration layer exposing forecast capabilities to the rest of the app."""
+
+from __future__ import annotations
+
+import hashlib
 import logging
+import re
+import threading
+import time
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
 
-from prometheus_api import PrometheusClient
-from lstm_forecaster import LSTMForecaster
-from metrics_filter import filter_metrics, get_defined_metrics
+import pandas as pd
+from prometheus_client import Gauge, generate_latest, start_http_server
 
+from .lstm_forecaster import LSTMForecaster
+from .metrics_filter import MetricsFilter
+from .prometheus_query import PrometheusClient
 
 logger = logging.getLogger(__name__)
 
 
 class MetricsForecastService:
-    """Service for forecasting network metrics using LSTM."""
-    
     def __init__(
         self,
-        prometheus_url: str = "http://localhost:9090",
-        metrics_export_port: int = 19101,
-        model_cache_dir: str = "./models"
-    ):
-        """
-        Initialize the forecasting service.
-        
-        Args:
-            prometheus_url: URL of Prometheus server
-            metrics_export_port: Port for exporting forecast metrics
-            model_cache_dir: Directory for caching trained models
-        """
-        self.prometheus_client = PrometheusClient(prometheus_url)
-        self.metrics_export_port = metrics_export_port
-        self.model_cache_dir = model_cache_dir
-        self.models: Dict[str, LSTMForecaster] = {}
-        self.forecast_metrics: Dict[str, Gauge] = {}
-        
-        # Create export metrics
-        self._setup_export_metrics()
-    
-    def _setup_export_metrics(self):
-        """Setup Prometheus metrics for exporting forecasts."""
+        forecaster: LSTMForecaster,
+        prometheus: PrometheusClient,
+        metrics_filter: MetricsFilter,
+    ) -> None:
+        self.forecaster = forecaster
+        self.prometheus = prometheus
+        self.metrics_filter = metrics_filter
+
+        object_labels = [
+            'hostname',  # hostname of the reporting device
+            'component_name',  # name of the component reporting seqrec metrics
+            'type',  # seqrec | replicate
+            'model_version',
+            'horizon_minutes',
+        ]
+
+        self.forecasted_packets = Gauge(
+            'forecasted_seqrec_packets',
+            'Number of packets predicted by the forecast model',
+            object_labels + ['valid'],  # valid = discarded|passed
+        )
+
+        self.forecasted_octets = Gauge(
+            'forecasted_replicate_octets_passed',
+            'Number of replicate octets passed predicted by the forecast model',
+            object_labels + ['valid'],  # valid = discarded|passed
+        )
+
+        self.forecasted_seq_num = Gauge(
+            'forecasted_seq_num',
+            'Predicted sequence number by the forecast model',
+            object_labels,
+        )
+
+        interface_labels = ['hostname', 
+                            'interface_name', 
+                            'direction',  # recv | send
+                            'model_version', 
+                            'horizon_minutes']
+
+        self.forecasted_interface_octets = Gauge(
+            'forecasted_interface_octets',
+            'Number of interface octets predicted by the forecast model',
+            interface_labels,
+        )
+
+        self.forecasted_interface_packets = Gauge(
+            'forecasted_interface_packets',
+            'Number of interface packets predicted by the forecast model',
+            interface_labels,
+        )
+
+        parser_labels = ['hostname', 
+                         'parser_name',
+                         'stream_name',
+                         'model_version', 
+                         'horizon_minutes']
+
+        self.forecasted_parser_packets = Gauge(
+            'forecasted_parser_packets',
+            'Number of parser packets predicted by the forecast model',
+            parser_labels,
+        )
+
+        self.forecasted_parser_octets = Gauge(
+            'forecasted_parser_octets',
+            'Number of parser octets predicted by the forecast model',
+            parser_labels,
+        )
+
+    def get_forecast(self, metric: str, labels: Dict[str, str]) -> Dict[str, object]:
+        if self.metrics_filter.filter_metrics([metric]) == []:
+            logger.debug("Metric %s ignored by filter", metric)
+            return {'status': 'filtered_out', 'metric': metric, 'labels': labels}
+
         try:
-            start_http_server(self.metrics_export_port)
-            logger.info(f"Started metrics export server on port {self.metrics_export_port}")
-        except OSError as e:
-            logger.warning(f"Could not start metrics server on port {self.metrics_export_port}: {e}")
-    
-    def discover_metrics(self, filter_pattern: Optional[str] = None) -> List[str]:
-        """
-        Discover available metrics from Prometheus that are defined in MetricsExporter.
-        
-        Only metrics explicitly defined in MetricsExporter will be returned.
-        
-        Args:
-            filter_pattern: Optional regex pattern to further filter metrics
-        
-        Returns:
-            List of metric names defined in MetricsExporter
-        """
-        try:
-            # Get all metrics from Prometheus
-            all_metrics = self.prometheus_client.get_available_metrics()
-            
-            # Filter to only include metrics defined in MetricsExporter
-            defined_only = filter_metrics(all_metrics)
-            
-            # Apply additional filter pattern if provided
-            if filter_pattern:
-                import re
-                pattern = re.compile(filter_pattern)
-                defined_only = [m for m in defined_only if pattern.search(m)]
-            
-            logger.info(f"Discovered {len(defined_only)} defined metrics from Prometheus "
-                       f"(filtered from {len(all_metrics)} total metrics)")
-            return defined_only
-        
-        except Exception as e:
-            logger.error(f"Failed to discover metrics: {e}")
-            return []
-    
-    def train_forecaster(
-        self,
-        metric_name: str,
-        filters: Optional[Dict[str, str]] = None,
-        history_hours: int = 24,
-        sequence_length: int = 24,
-        forecast_horizon: int = 6,
-        epochs: int = 50,
-        batch_size: int = 32
-    ) -> Dict:
-        """
-        Train an LSTM forecaster for a specific metric.
-        
-        Args:
-            metric_name: Name of the Prometheus metric
-            filters: Optional label filters
-            history_hours: Hours of historical data to use
-            sequence_length: Length of input sequences
-            forecast_horizon: Number of steps to forecast
-            epochs: Number of training epochs
-            batch_size: Batch size for training
-        
-        Returns:
-            Dictionary with training results
-        """
-        logger.info(f"Training forecaster for metric: {metric_name}")
-        
-        # Fetch data from Prometheus
-        end_time = datetime.now()
-        start_time = end_time - timedelta(hours=history_hours)
-        
-        try:
-            data = self.prometheus_client.fetch_time_series(
-                metric_name,
-                start_time=start_time,
-                end_time=end_time,
-                step="15s",
-                filters=filters
-            )
-        except Exception as e:
-            logger.error(f"Failed to fetch data for {metric_name}: {e}")
-            return {"status": "failed", "error": str(e)}
-        
-        if not data:
-            logger.warning(f"No data available for metric: {metric_name}")
-            return {"status": "no_data", "error": "No data available from Prometheus"}
-        
-        results = {}
-        
-        # Train a model for each time series
-        for label_key, time_series in data.items():
+            history = self._fetch_history(metric, labels)
+            logger.info("Fetched history for %s %s: %d points", metric, labels, len(history))
+        except Exception as exc:
+            logger.warning("Failed to fetch history for %s %s: %s", metric, labels, exc)
+
+        if not self.forecaster.has_model(metric, labels):
+            if len(history) < self.forecaster.lookback_points():
+                logger.info("Metric %s %s warming up (history=%d)", metric, labels, len(history))
+                return {'status': 'warming_up', 'metric': metric, 'labels': labels}
             try:
-                values = time_series['values']
-                logger.info(f"Training on {label_key} with {len(values)} data points")
-                
-                # Create and train forecaster
-                forecaster = LSTMForecaster(
-                    sequence_length=sequence_length,
-                    forecast_horizon=forecast_horizon
-                )
-                forecaster.build_model()
-                
-                metrics = forecaster.fit(
-                    values,
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    early_stopping=True,
-                    verbose=0
-                )
-                
-                # Store the model
-                model_key = f"{metric_name}:{label_key}"
-                self.models[model_key] = forecaster
-                
-                results[label_key] = {
-                    "status": "success",
-                    "metrics": metrics,
-                    "model_key": model_key
-                }
-                
-                logger.info(f"Successfully trained model for {label_key}")
-                
-            except Exception as e:
-                logger.error(f"Failed to train model for {label_key}: {e}")
-                results[label_key] = {
-                    "status": "failed",
-                    "error": str(e)
-                }
-        
-        return results
+                self.forecaster.train(metric, labels, history)
+            except ValueError as exc:
+                logger.info("Not enough data to train %s %s: %s", metric, labels, exc)
+                return {'status': 'warming_up', 'metric': metric, 'labels': labels}
+
+        forecast = self.forecaster.predict(metric, labels, history)
+        self._update_gauges(forecast)
+        logger.debug("Forecast ready for %s %s -> %.3f", metric, labels, forecast['point_forecast'])
+        return forecast
+
+    def trigger_retrain(self, metric: str, labels: Dict[str, str]) -> Dict[str, object]:
+        logger.info("Manual retrain requested for %s %s", metric, labels)
+        history = self._fetch_history(metric, labels)
+        metadata = self.forecaster.train(metric, labels, history)
+        self._cache.pop(self._cache_key(metric, labels), None)
+        logger.info("Manual retrain completed for %s %s version=%s", metric, labels, metadata.get('version'))
+        return metadata
+
+
+    def get_status(self) -> Dict[str, object]:
+        models = self.forecaster.list_models()
+        logger.debug("Status requested (models=%d cache=%d)", len(models), len(self._cache))
+        return {
+            'model_count': len(models),
+            'models': models,
+        }
     
-    def forecast(
-        self,
-        metric_name: str,
-        label_key: str,
-        steps_ahead: Optional[int] = None,
-        filters: Optional[Dict[str, str]] = None
-    ) -> Optional[np.ndarray]:
-        """
-        Generate forecast for a specific metric.
-        
-        Args:
-            metric_name: Name of the metric
-            label_key: Label combination key
-            steps_ahead: Number of steps to forecast
-            filters: Label filters for data retrieval
-        
-        Returns:
-            Array of forecast values or None if failed
-        """
-        model_key = f"{metric_name}:{label_key}"
-        
-        if model_key not in self.models:
-            logger.warning(f"No trained model for {model_key}")
-            return None
-        
-        try:
-            # Fetch recent data for context
-            end_time = datetime.now()
-            start_time = end_time - timedelta(hours=1)
-            
-            data = self.prometheus_client.fetch_time_series(
-                metric_name,
-                start_time=start_time,
-                end_time=end_time,
-                filters=filters
-            )
-            
-            if label_key not in data:
-                logger.warning(f"No recent data for {label_key}")
-                return None
-            
-            values = data[label_key]['values']
-            forecaster = self.models[model_key]
-            forecast = forecaster.predict(values, steps_ahead)
-            
-            logger.info(f"Generated forecast for {model_key}: {forecast}")
-            return forecast
-        
-        except Exception as e:
-            logger.error(f"Failed to generate forecast for {model_key}: {e}")
-            return None
-    
-    def get_available_metrics(self) -> List[str]:
-        """Get list of metrics defined in MetricsExporter that are available in Prometheus."""
-        try:
-            metrics = self.discover_metrics()
-            return metrics
-        except Exception as e:
-            logger.error(f"Failed to get available metrics: {e}")
-            return []
-    
-    def get_defined_metrics(self) -> List[str]:
-        """Get list of all metrics defined in MetricsExporter (regardless of Prometheus availability)."""
-        return get_defined_metrics()
-    
-    def forecast_batch(
-        self,
-        metric_configs: List[Dict],
-        steps_ahead: Optional[int] = None
-    ) -> Dict:
-        """
-        Generate forecasts for multiple metrics in batch.
-        
-        Args:
-            metric_configs: List of dicts with 'metric_name' and optional 'filters'
-            steps_ahead: Number of steps to forecast
-        
-        Returns:
-            Dictionary with forecast results
-        """
-        results = {}
-        
-        for config in metric_configs:
-            metric_name = config.get('metric_name')
-            filters = config.get('filters')
-            
-            if not metric_name:
-                logger.warning("Skipping config without metric_name")
-                continue
-            
-            logger.info(f"Processing forecasts for metric: {metric_name}")
-            
-            # Train if not already trained
-            if not any(k.startswith(f"{metric_name}:") for k in self.models.keys()):
-                train_results = self.train_forecaster(
-                    metric_name,
-                    filters=filters
-                )
-                results[f"{metric_name}:training"] = train_results
-            
-            # Generate forecasts
-            metric_forecasts = {}
-            for model_key in self.models.keys():
-                if model_key.startswith(f"{metric_name}:"):
-                    label_key = model_key.replace(f"{metric_name}:", "")
-                    forecast = self.forecast(
-                        metric_name,
-                        label_key,
-                        steps_ahead=steps_ahead,
-                        filters=filters
-                    )
-                    
-                    if forecast is not None:
-                        metric_forecasts[label_key] = {
-                            "forecast": forecast.tolist(),
-                            "timestamp": datetime.now().isoformat()
-                        }
-            
-            results[metric_name] = metric_forecasts
-        
-        return results
-    
-    def save_models(self, base_path: str = None):
-        """Save all trained models."""
-        import os
-        
-        if base_path is None:
-            base_path = self.model_cache_dir
-        
-        os.makedirs(base_path, exist_ok=True)
-        
-        for model_key, forecaster in self.models.items():
-            try:
-                filepath = os.path.join(base_path, f"{model_key.replace(':', '_')}.h5")
-                forecaster.save_model(filepath)
-                logger.info(f"Saved model to {filepath}")
-            except Exception as e:
-                logger.error(f"Failed to save model {model_key}: {e}")
-    
-    def load_models(self, base_path: str = None):
-        """Load all trained models."""
-        import os
-        
-        if base_path is None:
-            base_path = self.model_cache_dir
-        
-        if not os.path.exists(base_path):
-            logger.warning(f"Model cache directory does not exist: {base_path}")
+    def prometheus_payload(self) -> bytes:
+        return generate_latest()
+
+    def _fetch_history(self, metric: str, labels: Dict[str, str]) -> pd.DataFrame:
+        return self.prometheus.get_metric_history(
+            metric,
+            labels,
+            lookback_minutes=self.forecaster.lookback_minutes,
+            step_seconds=self.forecaster.cadence_seconds,
+            horizon_minutes=self.forecaster.horizon_minutes,
+        )
+
+    def _update_gauges(self, forecast: Dict[str, object], stale: bool = False) -> None:
+        metric = forecast.get('metric')
+        point = forecast.get('point_forecast')
+        if metric is None or point is None:
+            logger.debug("Skipping gauge update; metric=%s point=%s", metric, point)
             return
-        
-        for filename in os.listdir(base_path):
-            if filename.endswith('.h5'):
-                try:
-                    model_key = filename[:-3].replace('_', ':')
-                    filepath = os.path.join(base_path, filename)
-                    
-                    forecaster = LSTMForecaster()
-                    forecaster.load_model(filepath)
-                    
-                    self.models[model_key] = forecaster
-                    logger.info(f"Loaded model from {filepath}")
-                except Exception as e:
-                    logger.error(f"Failed to load model {filename}: {e}")
 
+        labels_raw = forecast.get('labels', {})
+        labels = {key: str(value) for key, value in labels_raw.items() if key != '__name__'}
+        hostname = labels.get('hostname', 'unknown')
+        component_name = labels.get('component_name') or labels.get('object_name') or 'unknown'
+        model_version = str(forecast.get('model_version', 'unknown'))
+        horizon = str(self.forecaster.horizon_minutes)
 
-def main():
-    """Example usage of the forecasting service."""
-    import argparse
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    parser = argparse.ArgumentParser(description='Network metrics forecasting service')
-    parser.add_argument(
-        '--prometheus-url',
-        default='http://localhost:9090',
-        help='Prometheus server URL'
-    )
-    parser.add_argument(
-        '--export-port',
-        type=int,
-        default=19101,
-        help='Port for exporting forecast metrics'
-    )
-    parser.add_argument(
-        '--metric',
-        help='Specific metric to forecast'
-    )
-    parser.add_argument(
-        '--list-metrics',
-        action='store_true',
-        help='List available metrics from Prometheus'
-    )
-    parser.add_argument(
-        '--train',
-        action='store_true',
-        help='Train forecasters for the specified metric'
-    )
-    parser.add_argument(
-        '--config',
-        help='Path to JSON config file for batch forecasting'
-    )
-    
-    args = parser.parse_args()
-    
-    service = MetricsForecastService(
-        prometheus_url=args.prometheus_url,
-        metrics_export_port=args.export_port
-    )
-    
-    if args.list_metrics:
-        metrics = service.get_available_metrics()
-        print("Available metrics:")
-        for metric in sorted(metrics):
-            print(f"  - {metric}")
-    
-    elif args.config:
-        with open(args.config, 'r') as f:
-            config = json.load(f)
-        
-        results = service.forecast_batch(config.get('metrics', []))
-        print(json.dumps(results, indent=2, default=str))
-        
-        service.save_models()
-    
-    elif args.metric:
-        if args.train:
-            results = service.train_forecaster(args.metric)
-            print(f"Training results: {json.dumps(results, indent=2, default=str)}")
-            service.save_models()
-
-
-if __name__ == '__main__':
-    main()
+        try:
+            if metric in {'seqrec_passed_packets', 'seqrec_discarded_packets', 'replicate_packets_passed'}:
+                metric_type = 'replicate' if metric.startswith('replicate_') else 'seqrec'
+                valid = 'passed' if 'passed' in metric else 'discarded'
+                self.forecasted_packets.labels(
+                    hostname=hostname,
+                    component_name=component_name,
+                    type=metric_type,
+                    model_version=model_version,
+                    horizon_minutes=horizon,
+                    valid=valid,
+                ).set(float(point))
+            elif metric == 'replicate_octets_passed':
+                self.forecasted_octets.labels(
+                    hostname=hostname,
+                    component_name=component_name,
+                    type='replicate',
+                    model_version=model_version,
+                    horizon_minutes=horizon,
+                    valid='passed',
+                ).set(float(point))
+            elif metric == 'seqrec_recovery_seq_num':
+                self.forecasted_seq_num.labels(
+                    hostname=hostname,
+                    component_name=component_name,
+                    type='seqrec',
+                    model_version=model_version,
+                    horizon_minutes=horizon,
+                ).set(float(point))
+            elif metric.startswith('interface_'):
+                direction = 'recv' if '_recv_' in metric else 'send'
+                interface_name = labels.get('interface_name') or labels.get('component_name') or 'unknown'
+                gauge = self.forecasted_interface_octets if 'octets' in metric else self.forecasted_interface_packets
+                gauge.labels(
+                    hostname=hostname,
+                    interface_name=interface_name,
+                    direction=direction,
+                    model_version=model_version,
+                    horizon_minutes=horizon,
+                ).set(float(point))
+            elif metric.startswith('parser_'):
+                parser_name = labels.get('parser_name') or labels.get('component_name') or metric.split('_', 1)[-1]
+                stream_name = labels.get('stream_name') or labels.get('object_name') or 'unknown'
+                gauge = self.forecasted_parser_octets if 'octets' in metric else self.forecasted_parser_packets
+                gauge.labels(
+                    hostname=hostname,
+                    parser_name=parser_name,
+                    stream_name=stream_name,
+                    model_version=model_version,
+                    horizon_minutes=horizon,
+                ).set(float(point))
+            else:
+                logger.debug("No forecast gauge configured for metric %s", metric)
+        except Exception as exc:
+            logger.warning("Failed to update forecast gauge for %s %s: %s", metric, labels, exc)

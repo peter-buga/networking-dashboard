@@ -3,17 +3,14 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'prometheus'
-    static_configs:
-      - targets: ['localhost:9090']
-  - job_name: 'generator'
-    static_configs:
-      - targets: ['generator:8000']
-  - job_name: 'collector'
-    static_configs:
-      - targets: ['collector:8002']
   - job_name: 'udp-receiver'
     static_configs:
       - targets: ['host.docker.internal:19100']
     scrape_interval: 1s
+    metrics_path: /metrics
+  - job_name: 'forecaster-forecasts'
+    # Scrape the forecaster API metrics endpoint exposed on the Flask service port (default 5000).
+    static_configs:
+      - targets: ['forecaster:5000']
+    scrape_interval: 15s
     metrics_path: /metrics
