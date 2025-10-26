@@ -9,7 +9,6 @@ scrape_configs:
     scrape_interval: 1s
     metrics_path: /metrics
   - job_name: 'forecaster-forecasts'
-    # Scrape the forecaster API metrics endpoint exposed on the Flask service port (default 5000).
     static_configs:
       - targets: ['forecaster:5000']
     scrape_interval: 15s

@@ -16,7 +16,6 @@ class PrometheusClient:
     def __init__(self, base_url: str, timeout: float = 10.0) -> None:
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
-        self._discovery_cache: Dict[str, object] = {}
 
     def _request(self, path: str, params: Dict[str, str]) -> Dict[str, object]:
         url = f"{self.base_url}{path}"
@@ -28,15 +27,9 @@ class PrometheusClient:
             raise RuntimeError(f"Prometheus API error: {payload}")
         return payload
 
-    def discover_metrics(self, match_prefix: Optional[str] = None, cache_ttl: int = 300) -> List[str]:
-        now = datetime.now(timezone.utc).timestamp()
-        cache_entry = self._discovery_cache.get('metrics')
-        if cache_entry and cache_entry['expires'] > now:
-            metrics = cache_entry['value']
-        else:
-            payload = self._request('/api/v1/label/__name__/values', {})
-            metrics = payload.get('data', [])
-            self._discovery_cache['metrics'] = {'value': metrics, 'expires': now + cache_ttl}
+    def discover_metrics(self, match_prefix: Optional[str] = None) -> List[str]:
+        payload = self._request('/api/v1/label/__name__/values', {})
+        metrics = payload.get('data', [])
         if match_prefix:
             return sorted(metric for metric in metrics if metric.startswith(match_prefix))
         return sorted(metrics)
@@ -88,16 +81,7 @@ class PrometheusClient:
             'timestamp': [datetime.fromtimestamp(float(ts), tz=timezone.utc) for ts, _ in values],
             'value': [float(val) for _, val in values],
         }
-        df = pd.DataFrame(data)
-        preview = df.head(3).to_dict(orient='records')
-        logger.info(
-            "Fetched %d samples for %s labels=%s preview=%s",
-            len(values),
-            metric,
-            labels,
-            preview,
-        )
-        return df
+        return pd.DataFrame(data)
 
     def is_healthy(self) -> bool:
         try:
