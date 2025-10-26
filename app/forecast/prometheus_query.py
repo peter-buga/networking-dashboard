@@ -28,13 +28,17 @@ class PrometheusClient:
         return payload
 
     def discover_metrics(self, match_prefix: Optional[str] = None) -> List[str]:
-        payload = self._request('/api/v1/label/__name__/values', {})
-        metrics = payload.get('data', [])
+        payload = self._request('/api/v1/metadata', {})
+        data = payload.get('data', {})
+        if isinstance(data, dict):
+            metrics = list(data.keys())
+        else:
+            metrics = []
         if match_prefix:
             return sorted(metric for metric in metrics if metric.startswith(match_prefix))
         return sorted(metrics)
 
-    def list_series(self, metric: str, lookback_minutes: int = 60) -> List[Dict[str, str]]:
+    def list_series(self, metric: str, lookback_minutes: int = 90) -> List[Dict[str, str]]:
         end = datetime.now(timezone.utc)
         start = end - timedelta(minutes=lookback_minutes)
         match_expr = f'{metric}'
@@ -55,7 +59,7 @@ class PrometheusClient:
         horizon_minutes: int,
     ) -> pd.DataFrame:
         end = datetime.now(timezone.utc)
-        start = end - timedelta(minutes=lookback_minutes + horizon_minutes)
+        start = end - (timedelta(minutes=lookback_minutes + horizon_minutes)*2)
         label_filters = ','.join(
             [
                 f"{k}='{v}'"

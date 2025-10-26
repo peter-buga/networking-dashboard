@@ -118,23 +118,6 @@ class MetricsForecastService:
         self._update_gauges(forecast)
         logger.debug("Forecast ready for %s %s -> %.3f", metric, labels, forecast['point_forecast'])
         return forecast
-
-    def trigger_retrain(self, metric: str, labels: Dict[str, str]) -> Dict[str, object]:
-        logger.info("Manual retrain requested for %s %s", metric, labels)
-        history = self._fetch_history(metric, labels)
-        metadata = self.forecaster.train(metric, labels, history)
-        self._cache.pop(self._cache_key(metric, labels), None)
-        logger.info("Manual retrain completed for %s %s version=%s", metric, labels, metadata.get('version'))
-        return metadata
-
-
-    def get_status(self) -> Dict[str, object]:
-        models = self.forecaster.list_models()
-        logger.debug("Status requested (models=%d cache=%d)", len(models), len(self._cache))
-        return {
-            'model_count': len(models),
-            'models': models,
-        }
     
     def prometheus_payload(self) -> bytes:
         return generate_latest()

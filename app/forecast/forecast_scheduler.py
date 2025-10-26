@@ -26,6 +26,7 @@ class ForecastScheduler:
         prometheus: PrometheusClient,
         metrics_filter: MetricsFilter,
         max_concurrency: int,
+        retrain_days: int,
         jitter_seconds: int = 5,
         discovery_interval_seconds: int = 300,
     ) -> None:
@@ -33,6 +34,7 @@ class ForecastScheduler:
         self.prometheus = prometheus
         self.metrics_filter = metrics_filter
         self.max_concurrency = max(1, max_concurrency)
+        self.retrain_days = retrain_days
         self.jitter_seconds = jitter_seconds
         self.discovery_interval_seconds = discovery_interval_seconds
         self._stop_event = threading.Event()
@@ -48,17 +50,12 @@ class ForecastScheduler:
         self._thread.start()
         logger.info("Forecast scheduler started")
 
-    def stop(self) -> None:
-        self._stop_event.set()
-        if self._thread:
-            self._thread.join(timeout=2)
-            self._thread = None
-
     def schedule_jobs(self) -> None:
         cadence = max(1, self.service.forecaster.cadence_seconds)
         schedule.clear('forecast')
         schedule.every(cadence).seconds.do(self.run_inference_cycle).tag('forecast')
-        schedule.every().day.at('03:00').do(self.run_retrain_cycle).tag('forecast')
+        #schedule.every(self.retrain_days).days.at('00:00').do(self.run_retrain_cycle).tag('forecast')
+        schedule.every(self.retrain_days).hours.at('00:00').do(self.run_retrain_cycle).tag('forecast')
 
     def run_inference_cycle(self) -> None:
         logger.debug("Running inference cycle")
@@ -110,7 +107,7 @@ class ForecastScheduler:
         logger.debug("Discovery found %d metrics (eligible=%d)", len(metrics), len(eligible_metrics))
         targets: List[Tuple[str, Dict[str, str]]] = []
         for metric in eligible_metrics:
-            series = self.prometheus.list_series(metric, lookback_minutes=60)
+            series = self.prometheus.list_series(metric, lookback_minutes=90)
             filtered = self.metrics_filter.filter_series(metric, series)
             for labels in filtered:
                 targets.append((metric, labels))

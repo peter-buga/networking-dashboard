@@ -52,6 +52,7 @@ scheduler = ForecastScheduler(
     prometheus=service.prometheus,
     metrics_filter=service.metrics_filter,
     max_concurrency=service.forecaster.max_parallel_jobs,
+    retrain_days=service.forecaster.retrain_days,
 )
 scheduler.start()
 
@@ -79,38 +80,11 @@ def forecast_predict() -> Response:
     return jsonify(result)
 
 
-@app.route('/forecast/retrain', methods=['POST'])
-def forecast_retrain() -> Response:
-    payload = request.get_json(force=True)
-    metric = payload.get('metric')
-    labels = payload.get('labels', {})
-    if not metric or not isinstance(labels, dict):
-        return jsonify({'error': 'metric and labels are required'}), 400
-    logger.info("/forecast/retrain metric=%s labels=%s", metric, labels)
-    try:
-        metadata = service.trigger_retrain(metric, labels)
-    except Exception as exc:  # pragma: no cover - external dependency
-        logger.error("Retrain failed for %s %s: %s", metric, labels, exc)
-        return jsonify({'error': str(exc), 'metric': metric, 'labels': labels}), 500
-    return jsonify(metadata)
-
-
-@app.route('/forecast/status', methods=['GET'])
-def forecast_status() -> Response:
-    status = service.get_status()
-    return jsonify(status)
-
-
 @app.route('/health', methods=['GET'])
 def health() -> Response:
     healthy = service.prometheus.is_healthy()
     status_code = 200 if healthy else 503
     return jsonify({'status': 'ok' if healthy else 'degraded'}), status_code
-
-
-@app.route('/ready', methods=['GET'])
-def ready() -> Response:
-    return jsonify({'status': 'ready', 'models': service.get_status()['model_count']})
 
 
 @app.route('/metrics', methods=['GET'])

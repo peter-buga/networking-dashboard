@@ -13,7 +13,7 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from tensorflow import keras
 from tensorflow.keras import layers
 import joblib
@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelBundle:
 	model: keras.Model
-	scaler: StandardScaler
+	scaler: MinMaxScaler
+	target_scaler: Optional[MinMaxScaler]
 	metadata: Dict[str, object]
 
 
@@ -37,9 +38,13 @@ class LSTMForecaster:
 		self.max_parallel_jobs = int(os.getenv('FORECAST_MAX_CONCURRENCY', 10))
 		clip_sigma = os.getenv('FORECAST_CLIP_Z')
 		self.clip_sigma = float(clip_sigma) if clip_sigma else None
-		model_dir = os.getenv('FORECAST_MODEL_DIR') or Path(__file__).resolve().parents[2] / 'docker_setup' / 'forecaster_models'
-		self.model_dir = Path(model_dir)
-		self.model_dir.mkdir(parents=True, exist_ok=True)
+		env_model_dir = os.getenv('FORECAST_MODEL_DIR')
+		default_dir = Path(__file__).resolve().parents[2] / 'docker_setup' / 'forecaster_models'
+		if env_model_dir:
+			# Honour explicit configuration; fail fast if not writable.
+			self.model_dir = self._prepare_model_dir(Path(env_model_dir).expanduser(), allow_fallback=False)
+		else:
+			self.model_dir = self._prepare_model_dir(default_dir, allow_fallback=True)
 		self._cache: Dict[Tuple[str, str], ModelBundle] = {}
 		logger.info(
 			"LSTMForecaster initialised (lookback=%sm horizon=%sm cadence=%ss models=%s)",
@@ -58,28 +63,61 @@ class LSTMForecaster:
 		if len(series) < lookback_steps + self._horizon_steps():
 			raise ValueError('Not enough datapoints to train model')
 
-		X, y = self._build_windows(series, lookback_steps)
-		scaler = StandardScaler()
-		scaled_matrix = scaler.fit_transform(X.reshape(X.shape[0], -1)).astype(np.float32)
-		X_scaled = scaled_matrix.reshape(X.shape[0], lookback_steps, 1)
+		values = series.values.astype(np.float32).reshape(-1, 1)
+		feature_scaler = MinMaxScaler(feature_range=(0.0, 1.0))
+		scaled_values = feature_scaler.fit_transform(values).flatten()
 
-		split_idx = max(1, int(len(X_scaled) * 0.8))
+		horizon_steps = self._horizon_steps()
+		X_windows, target_indices = self._build_windows(scaled_values, lookback_steps, horizon_steps)
+		X_scaled = X_windows.reshape(X_windows.shape[0], lookback_steps, 1).astype(np.float32)
+
+		original_values = values.flatten()
+		y_original = original_values[target_indices].astype(np.float32)
+		target_scaler = MinMaxScaler(feature_range=(0.0, 1.0))
+		y_scaled = target_scaler.fit_transform(y_original.reshape(-1, 1)).astype(np.float32).flatten()
+
+		split_ratio = float(os.getenv('FORECAST_TRAIN_SPLIT', '0.67'))
+		split_ratio = min(max(split_ratio, 0.1), 0.9)
+		split_idx = max(1, int(len(X_scaled) * split_ratio))
 		X_train, X_val = X_scaled[:split_idx], X_scaled[split_idx:]
-		y_train = y[:split_idx].astype(np.float32)
-		y_val = y[split_idx:].astype(np.float32)
+		y_train_orig, y_val_orig = y_original[:split_idx], y_original[split_idx:]
+		y_train_scaled = y_scaled[:split_idx]
+		y_val_scaled = y_scaled[split_idx:]
 
 		model = self._build_model(lookback_steps)
 		epochs = int(os.getenv('FORECAST_TRAIN_EPOCHS', 5))
 		batch_size = int(os.getenv('FORECAST_BATCH_SIZE', 32))
+		batch_size = max(1, min(batch_size, len(X_train)))
 		verbose = 0 if os.getenv('FORECAST_TRAIN_QUIET', '1') == '1' else 1
-		model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=verbose)
+		callbacks: List[keras.callbacks.Callback] = []
+		patience = int(os.getenv('FORECAST_EARLY_STOP_PATIENCE', '0'))
+		if patience > 0 and len(X_val) > 0:
+			callbacks.append(
+				keras.callbacks.EarlyStopping(
+					monitor='val_loss',
+					patience=patience,
+					restore_best_weights=True,
+				)
+			)
+		validation_data = (X_val, y_val_scaled) if len(X_val) > 0 else None
+		model.fit(
+			X_train,
+			y_train_scaled,
+			epochs=epochs,
+			batch_size=batch_size,
+			verbose=verbose,
+			validation_data=validation_data,
+			callbacks=callbacks,
+		)
 
 		if len(X_val) > 0:
-			predictions = model.predict(X_val, verbose=0).flatten()
-			residuals = predictions - y_val
+			pred_scaled = model.predict(X_val, verbose=0)
+			predictions = target_scaler.inverse_transform(pred_scaled)
+			residuals = predictions.flatten() - y_val_orig
 		else:
-			predictions = model.predict(X_train, verbose=0).flatten()
-			residuals = predictions - y_train
+			pred_scaled = model.predict(X_train, verbose=0)
+			predictions = target_scaler.inverse_transform(pred_scaled)
+			residuals = predictions.flatten() - y_train_orig
 
 		rmse = float(np.sqrt(np.mean(np.square(residuals))))
 		residual_std = float(np.std(residuals))
@@ -92,11 +130,17 @@ class LSTMForecaster:
 			'trained_at': datetime.now(timezone.utc).isoformat(),
 			'lookback_minutes': self.lookback_minutes,
 			'horizon_minutes': self.horizon_minutes,
+			'train_split': split_ratio,
 			'rmse': rmse,
 			'residual_std': residual_std,
+			'value_scaler': 'minmax',
 		}
 
-		promoted = self._save_bundle(metric, metadata['label_hash'], ModelBundle(model, scaler, metadata))
+		promoted = self._save_bundle(
+			metric,
+			metadata['label_hash'],
+			ModelBundle(model, feature_scaler, target_scaler, metadata),
+		)
 		logger.info(
 			"Training completed for %s/%s version=%s rmse=%.4f promoted=%s",
 			metric,
@@ -117,10 +161,12 @@ class LSTMForecaster:
 		if len(series) < self._lookback_steps():
 			raise ValueError('Insufficient history for prediction window')
 
-		window = series.values.astype(np.float32).reshape(1, -1)
+		window = series.values.astype(np.float32).reshape(-1, 1)
 		scaled_matrix = bundle.scaler.transform(window).astype(np.float32)
 		scaled = scaled_matrix.reshape(1, self._lookback_steps(), 1)
-		point_forecast = float(bundle.model.predict(scaled, verbose=0).flatten()[0])
+		scaled_forecast = bundle.model.predict(scaled, verbose=0)
+		target_scaler = bundle.target_scaler or bundle.scaler
+		point_forecast = float(target_scaler.inverse_transform(scaled_forecast).flatten()[0])
 		std = float(bundle.metadata.get('residual_std') or 0.0)
 		if std > 0:
 			delta = 1.96 * std
@@ -197,34 +243,29 @@ class LSTMForecaster:
 		else:
 			clipped = resampled
 		return clipped.ffill().bfill().astype(np.float32)
-
-	def _build_windows(self, series: pd.Series, lookback_steps: int) -> Tuple[np.ndarray, np.ndarray]:
-		values = series.values.astype(np.float32)
-		horizon_steps = self._horizon_steps()
-		X: List[np.ndarray] = []
-		y: List[float] = []
-		for idx in range(lookback_steps, len(values) - horizon_steps + 1):
-			window = values[idx - lookback_steps:idx]
-			target = values[idx: idx + horizon_steps].mean()
-			X.append(window)
-			y.append(target)
-		if not X:
-			raise ValueError('Unable to build training windows for provided series')
-		X_array = np.array(X, dtype=np.float32)
-		y_array = np.array(y, dtype=np.float32)
-		return X_array[:, :, np.newaxis], y_array
+	
+	def _build_windows(self, values: np.ndarray, lookback_steps: int, horizon_steps: int) -> Tuple[np.ndarray, np.ndarray]:
+			flat_values = np.asarray(values, dtype=np.float32).flatten()
+			X: List[np.ndarray] = []
+			target_indices: List[int] = []
+			for end_idx in range(lookback_steps, len(flat_values) - horizon_steps + 1):
+				start_idx = end_idx - lookback_steps
+				target_idx = end_idx + horizon_steps - 1
+				X.append(flat_values[start_idx:end_idx])
+				target_indices.append(int(target_idx))
+			if not X:
+				raise ValueError('Unable to build training windows for provided series')
+			return np.array(X, dtype=np.float32), np.array(target_indices, dtype=np.int64)
 
 	def _build_model(self, lookback_steps: int) -> keras.Model:
-		model = keras.Sequential([
-			layers.Input(shape=(lookback_steps, 1)),
-			layers.LSTM(64, return_sequences=True),
-			layers.Dropout(0.2),
-			layers.LSTM(32),
-			layers.Dense(32, activation='relu'),
-			layers.Dense(1, activation='softplus'),
-		])
-		model.compile(optimizer=keras.optimizers.Adam(learning_rate=1e-3), loss='mse', metrics=['mae'])
-		return model
+			model = keras.Sequential([
+				layers.Input(shape=(lookback_steps, 1)),
+				layers.LSTM(50, return_sequences=True),
+				layers.LSTM(50),
+				layers.Dense(1),
+			])
+			model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+			return model
 
 	def _ensure_bundle(self, metric: str, labels: Dict[str, str]) -> Optional[ModelBundle]:
 		key = (metric, self._label_hash(labels))
@@ -257,7 +298,11 @@ class LSTMForecaster:
 			return None
 		model = keras.models.load_model(model_path)
 		scaler = self._load_scaler(scaler_path)
-		return ModelBundle(model=model, scaler=scaler, metadata=metadata)
+		try:
+			target_scaler = self._load_scaler(version_dir / 'target_scaler.pkl')
+		except FileNotFoundError:
+			target_scaler = None
+		return ModelBundle(model=model, scaler=scaler, target_scaler=target_scaler, metadata=metadata)
 
 	def _save_bundle(self, metric: str, label_hash: str, bundle: ModelBundle) -> bool:
 		label_dir = self.model_dir / metric / label_hash
@@ -266,6 +311,8 @@ class LSTMForecaster:
 
 		bundle.model.save(version_dir / 'model.keras', include_optimizer=False)
 		self._save_scaler(version_dir / 'scaler.pkl', bundle.scaler)
+		if bundle.target_scaler is not None:
+			self._save_scaler(version_dir / 'target_scaler.pkl', bundle.target_scaler)
 		(version_dir / 'metadata.json').write_text(json.dumps(bundle.metadata, indent=2))
 
 		latest_meta = self._load_latest_metadata(label_dir)
@@ -295,10 +342,10 @@ class LSTMForecaster:
 				logger.warning("Failed to parse %s", latest_file)
 		return None
 
-	def _save_scaler(self, path: Path, scaler: StandardScaler) -> None:
+	def _save_scaler(self, path: Path, scaler: MinMaxScaler) -> None:
 		joblib.dump(scaler, path)
 
-	def _load_scaler(self, path: Path) -> StandardScaler:
+	def _load_scaler(self, path: Path) -> MinMaxScaler:
 		return joblib.load(path)
 
 	def _label_hash(self, labels: Dict[str, str]) -> str:
@@ -318,3 +365,28 @@ class LSTMForecaster:
 	def _new_version_identifier(self) -> str:
 		now = datetime.now(timezone.utc)
 		return now.strftime('v%Y%m%d-%H%M')
+
+	def _prepare_model_dir(self, candidate: Path, allow_fallback: bool) -> Path:
+		resolved = self._ensure_writable_dir(candidate)
+		if resolved:
+			return resolved
+		if allow_fallback:
+			fallback = Path.home() / '.cache' / 'networking-dashboard' / 'forecaster_models'
+			fallback_resolved = self._ensure_writable_dir(fallback)
+			if fallback_resolved:
+				logger.info("Using fallback model directory at %s", fallback_resolved)
+				return fallback_resolved
+		raise PermissionError(
+			f"Model directory {candidate} is not writable. Set FORECAST_MODEL_DIR to a writable path."
+		)
+
+	def _ensure_writable_dir(self, path: Path) -> Optional[Path]:
+		try:
+			path.mkdir(parents=True, exist_ok=True)
+		except PermissionError:
+			logger.warning("Cannot create model directory %s due to insufficient permissions", path)
+			return None
+		if os.access(path, os.W_OK | os.X_OK):
+			return path
+		logger.warning("Model directory %s exists but is not writable", path)
+		return None
