@@ -180,6 +180,7 @@ class ARIMAForecaster:
         forecast = results.get_forecast(steps=horizon_steps)
         predicted = forecast.predicted_mean.to_numpy(dtype=np.float32)
         point_forecast = float(predicted[-1])
+        prediction_timestamp_ms = self._compute_prediction_timestamp(preprocessed.index, forecast, horizon_steps)
 
         conf_int = forecast.conf_int()
         if isinstance(conf_int, pd.DataFrame):
@@ -225,6 +226,7 @@ class ARIMAForecaster:
             'point_forecast': point_forecast,
             'confidence_interval': confidence_interval,
             'model_version': bundle.metadata['version'],
+            'prediction_timestamp_ms': prediction_timestamp_ms,
         }
 
     def load_model(self, metric: str, labels: Dict[str, str]) -> Optional[Dict[str, object]]:
@@ -488,6 +490,53 @@ class ARIMAForecaster:
 
     def _horizon_steps(self) -> int:
         return max(1, int((self.horizon_minutes * 60) / self.cadence_seconds))
+
+    def _compute_prediction_timestamp(
+        self,
+        history_index: pd.Index,
+        forecast_obj,
+        horizon_steps: int,
+    ) -> int:
+        """
+        Determine the timestamp for the current point forecast.
+
+        Prefer the timestamp produced by the forecasting model. If unavailable,
+        fall back to extrapolating from the latest history point. Returns
+        milliseconds since the Unix epoch.
+        """
+        timestamp: Optional[pd.Timestamp] = None
+        forecast_series = getattr(forecast_obj, 'predicted_mean', None)
+        forecast_index = getattr(forecast_series, 'index', None)
+        if forecast_index is not None:
+            try:
+                raw_label = forecast_index[-1]
+            except Exception:
+                raw_label = None
+            if raw_label is not None:
+                try:
+                    ts_candidate = pd.Timestamp(raw_label)
+                    if ts_candidate.tzinfo is None:
+                        timestamp = ts_candidate.tz_localize(timezone.utc)
+                    else:
+                        timestamp = ts_candidate.tz_convert(timezone.utc)
+                except (TypeError, ValueError):
+                    timestamp = None
+        if timestamp is None:
+            fallback_ts: Optional[pd.Timestamp] = None
+            if len(history_index):
+                try:
+                    last_history = pd.Timestamp(history_index[-1])
+                    if last_history.tzinfo is None:
+                        last_history = last_history.tz_localize(timezone.utc)
+                    else:
+                        last_history = last_history.tz_convert(timezone.utc)
+                    fallback_ts = last_history + pd.Timedelta(seconds=self.cadence_seconds * horizon_steps)
+                except Exception:
+                    fallback_ts = None
+            if fallback_ts is None:
+                fallback_ts = pd.Timestamp.now(tz=timezone.utc)
+            timestamp = fallback_ts
+        return int(timestamp.value // 1_000_000)
 
     def _new_version_identifier(self) -> str:
         now = datetime.now(timezone.utc)

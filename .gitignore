@@ -207,3 +207,4 @@ marimo/_lsp/
 __marimo__/
 
 docker_setup/forecaster_models
+app/forecast/tmp
