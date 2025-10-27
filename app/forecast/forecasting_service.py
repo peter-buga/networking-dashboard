@@ -13,7 +13,7 @@ from typing import Dict, Optional, Tuple
 import pandas as pd
 from prometheus_client import Gauge, generate_latest, start_http_server
 
-from .lstm_forecaster import LSTMForecaster
+from .arima_forecaster import ARIMAForecaster
 from .metrics_filter import MetricsFilter
 from .prometheus_query import PrometheusClient
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class MetricsForecastService:
     def __init__(
         self,
-        forecaster: LSTMForecaster,
+        forecaster: ARIMAForecaster,
         prometheus: PrometheusClient,
         metrics_filter: MetricsFilter,
     ) -> None:

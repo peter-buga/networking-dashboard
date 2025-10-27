@@ -58,8 +58,19 @@ class PrometheusClient:
         step_seconds: int,
         horizon_minutes: int,
     ) -> pd.DataFrame:
+        
         end = datetime.now(timezone.utc)
         start = end - (timedelta(minutes=lookback_minutes + horizon_minutes)*2)
+
+       # now = datetime.now(timezone.utc)
+       # target_year = now.year
+       # start = datetime(target_year, 10, 27, 2, tzinfo=timezone.utc)
+       # if start > now:
+       #     start = datetime(target_year - 1, 10, 27, 2, tzinfo=timezone.utc)
+       # window_minutes = max((lookback_minutes + horizon_minutes) * 2, 1)
+       # end = start + timedelta(minutes=window_minutes)
+
+        
         label_filters = ','.join(
             [
                 f"{k}='{v}'"

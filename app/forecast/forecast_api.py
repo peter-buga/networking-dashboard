@@ -10,7 +10,7 @@ from prometheus_client import CONTENT_TYPE_LATEST
 
 from .forecast_scheduler import ForecastScheduler
 from .forecasting_service import MetricsForecastService
-from .lstm_forecaster import LSTMForecaster
+from .arima_forecaster import ARIMAForecaster
 from .metrics_filter import MetricsFilter
 from .prometheus_query import PrometheusClient
 
@@ -36,7 +36,7 @@ app = Flask(__name__)
 
 def create_service() -> MetricsForecastService:
     logger.info('Initialising forecast service components')
-    forecaster = LSTMForecaster()
+    forecaster = ARIMAForecaster()
     prometheus_url = os.getenv('PROMETHEUS_BASE_URL', 'http://localhost:9090')
     prometheus = PrometheusClient(prometheus_url)
     filter_path = Path(os.getenv('FORECAST_FILTER_CONFIG', Path(__file__).with_name('metrics_filter.yaml')))
@@ -97,4 +97,3 @@ if __name__ == '__main__':  # pragma: no cover - manual execution entry point
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s %(message)s')
     scheduler.start()
     app.run(host='0.0.0.0', port=int(os.getenv('FORECAST_API_PORT', 8080)))
-
