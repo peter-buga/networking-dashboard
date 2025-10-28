@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA, ARIMAResults
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
+from statsmodels.tsa.stattools import adfuller, kpss
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,15 @@ class ARIMAForecaster:
                 f'Not enough data to train (have={len(series)}, required>={min_required})'
             )
 
+        # Apply stationarity check and differencing transformation
+        series, diff_order, original_values = self._make_stationary(series)
+
+        # After differencing, verify we still have enough data
+        if len(series) < min_required:
+            raise ValueError(
+                f'Not enough data after differencing (have={len(series)}, required>={min_required})'
+            )
+
         train_series = series.iloc[:-horizon_steps]
         eval_series = series.iloc[-horizon_steps:]
 
@@ -141,6 +151,7 @@ class ARIMAForecaster:
             'baseline_weight': float(baseline_weight),
             'baseline_strategy': self.baseline_strategy,
             'arima_order': final_order,
+            'diff_order': diff_order,
         }
 
         promoted = self._save_bundle(
@@ -176,9 +187,32 @@ class ARIMAForecaster:
         if len(series) < lookback_steps:
             raise ValueError('Not enough history points for inference')
 
+        # Get differencing order from model metadata
+        diff_order = int(bundle.metadata.get('diff_order', 0))
+
+        # Keep original series reference for inverse differencing and baseline calculation
+        original_series = series.copy()
+
+        if diff_order > 0:
+            # Apply differencing to input series for prediction
+            if diff_order == 1:
+                series = series.diff().dropna()
+            elif diff_order == 2:
+                series = original_series.diff().diff().dropna()
+            logger.debug("Applied d=%d differencing to input series for prediction (samples: %d -> %d)",
+                        diff_order, len(original_series), len(series))
+
         results = bundle.results.apply(series, refit=False)
         forecast = results.get_forecast(steps=horizon_steps)
         predicted = forecast.predicted_mean.to_numpy(dtype=np.float32)
+
+        # Inverse transform predictions back to original scale if differencing was applied
+        # Use fresh values from current prediction input, not stale training metadata
+        if diff_order > 0:
+            fresh_original_values = original_series.dropna().tolist()
+            predicted = self._inverse_difference(predicted, diff_order, fresh_original_values).astype(np.float32)
+            logger.debug("Applied inverse differencing to predictions (using fresh values from input)")
+
         point_forecast = float(predicted[-1])
         prediction_timestamp_ms = self._compute_prediction_timestamp(preprocessed.index, forecast, horizon_steps)
 
@@ -189,9 +223,18 @@ class ARIMAForecaster:
             lower = float(conf_int[-1][0])
             upper = float(conf_int[-1][1])
 
+        # Inverse transform confidence intervals using fresh values
+        if diff_order > 0:
+            fresh_original_values = original_series.dropna().tolist()
+            lower_array = np.array([lower])
+            upper_array = np.array([upper])
+            lower = float(self._inverse_difference(lower_array, diff_order, fresh_original_values)[0])
+            upper = float(self._inverse_difference(upper_array, diff_order, fresh_original_values)[0])
+
         baseline_weight = float(bundle.metadata.get('baseline_weight', self.default_baseline_weight))
         if baseline_weight > 0:
-            raw_window = series.iloc[-lookback_steps:].to_numpy(dtype=np.float32)
+            # Calculate baseline from original scale series, not differenced series
+            raw_window = original_series.iloc[-lookback_steps:].to_numpy(dtype=np.float32)
             strategy = bundle.metadata.get('baseline_strategy', self.baseline_strategy)
             if strategy not in {'last', 'mean', 'median'}:
                 strategy = self.baseline_strategy
@@ -268,6 +311,166 @@ class ARIMAForecaster:
         return self._horizon_steps()
 
     # --- Internal helpers -----------------------------------------------
+    def _check_stationarity(self, series: pd.Series, alpha: float = 0.05) -> Tuple[bool, Dict[str, object]]:
+        """
+        Check if a time series is stationary using both ADF and KPSS tests.
+
+        A series is considered stationary if:
+        - ADF test rejects H0 (non-stationary) at alpha significance level
+        - KPSS test fails to reject H0 (stationary) at alpha significance level
+
+        Returns:
+            (is_stationary, test_stats_dict)
+        """
+        if series.empty or len(series) < 10:
+            logger.warning("Series too short for stationarity testing (len=%d)", len(series))
+            return False, {'error': 'Series too short'}
+
+        # Check for constant series (no variance)
+        if series.std() == 0:
+            logger.warning("Series has zero variance (constant values)")
+            return False, {'error': 'Zero variance series', 'mean': float(series.mean())}
+
+        test_stats = {}
+        try:
+            # ADF Test: H0 = non-stationary, reject if p-value < alpha
+            adf_result = adfuller(series, autolag='AIC')
+            adf_pvalue = float(adf_result[1])
+            test_stats['adf_pvalue'] = adf_pvalue
+            test_stats['adf_statistic'] = float(adf_result[0])
+            test_stats['adf_critical_5pct'] = float(adf_result[4]['5%'])
+            adf_stationary = adf_pvalue < alpha
+        except Exception as exc:
+            logger.warning("ADF test failed: %s", exc)
+            adf_stationary = False
+            test_stats['adf_error'] = str(exc)
+
+        try:
+            # KPSS Test: H0 = stationary, fail to reject if p-value >= alpha
+            kpss_result = kpss(series, regression='c', nlags='auto')
+            kpss_pvalue = float(kpss_result[1])
+            test_stats['kpss_pvalue'] = kpss_pvalue
+            test_stats['kpss_statistic'] = float(kpss_result[0])
+            test_stats['kpss_critical_5pct'] = float(kpss_result[3]['5%'])
+            kpss_stationary = kpss_pvalue >= alpha
+        except Exception as exc:
+            logger.warning("KPSS test failed: %s", exc)
+            kpss_stationary = False
+            test_stats['kpss_error'] = str(exc)
+
+        # Both tests must agree
+        is_stationary = adf_stationary and kpss_stationary
+        test_stats['stationary'] = is_stationary
+
+        logger.info(
+            "Stationarity test: ADF=%s (p=%.4f), KPSS=%s (p=%.4f) -> stationary=%s",
+            adf_stationary,
+            test_stats.get('adf_pvalue', -1),
+            kpss_stationary,
+            test_stats.get('kpss_pvalue', -1),
+            is_stationary,
+        )
+
+        return is_stationary, test_stats
+
+    def _make_stationary(self, series: pd.Series, max_diff: int = 2) -> Tuple[pd.Series, int, List[float]]:
+        """
+        Transform a time series to be stationary through differencing if needed.
+
+        If the series is already stationary, returns it unchanged.
+        Otherwise, applies first-order or second-order differencing as needed.
+
+        Returns:
+            (stationary_series, differencing_order, original_values_for_inverse)
+        """
+        original_series = series.copy()
+        diff_order = 0
+
+        is_stationary, test_stats = self._check_stationarity(series)
+
+        if not is_stationary and max_diff >= 1:
+            logger.info("Applying first-order differencing to make series stationary")
+            series = series.diff().dropna()
+            diff_order = 1
+
+            is_stationary, test_stats = self._check_stationarity(series)
+
+        if not is_stationary and max_diff >= 2:
+            logger.info("Applying second-order differencing to make series stationary")
+            series = original_series.diff().diff().dropna()
+            diff_order = 2
+
+            is_stationary, test_stats = self._check_stationarity(series)
+
+        if not is_stationary:
+            logger.warning(
+                "Series could not be made stationary with d=%d differencing, proceeding anyway",
+                max_diff,
+            )
+
+        logger.info("Stationarity transformation complete: diff_order=%d, samples=%d", diff_order, len(series))
+
+        # Store original values for inverse transformation (needed for predictions)
+        original_values = original_series.dropna().tolist()
+
+        return series, diff_order, original_values
+
+    def _inverse_difference(
+        self, differenced_values: np.ndarray, diff_order: int, original_values: List[float]
+    ) -> np.ndarray:
+        """
+        Reverse the differencing transformation to get predictions back to original scale.
+
+        Args:
+            differenced_values: The differenced predictions from ARIMA
+            diff_order: The order of differencing applied (1 or 2)
+            original_values: Original (non-differenced) values needed for inverse transform
+
+        Returns:
+            Array of values in original scale
+        """
+        if diff_order == 0 or len(original_values) == 0:
+            return differenced_values
+
+        values = differenced_values.copy()
+
+        if diff_order == 1:
+            # For d=1: original[t] = diff[t] + original[t-1]
+            last_original = original_values[-1]
+            reconstructed = np.empty_like(values)
+            for i, diff_val in enumerate(values):
+                last_original = last_original + diff_val
+                reconstructed[i] = last_original
+            return reconstructed
+
+        elif diff_order == 2:
+            # For d=2: apply inverse twice
+            # First, reconstruct d=1 level using the last original value and its first difference
+            # last_diff = original_values[-1] - original_values[-2] (if available)
+            # Then reconstruct d=0 from d=1
+
+            if len(original_values) >= 2:
+                last_diff = original_values[-1] - original_values[-2]
+            else:
+                last_diff = 0.0
+
+            # First inverse: reconstruct first-difference level
+            level_1_reconstructed = np.empty_like(values)
+            for i, second_diff_val in enumerate(values):
+                last_diff = last_diff + second_diff_val
+                level_1_reconstructed[i] = last_diff
+
+            # Second inverse: reconstruct original level
+            last_original = original_values[-1]
+            reconstructed = np.empty_like(values)
+            for i, first_diff_val in enumerate(level_1_reconstructed):
+                last_original = last_original + first_diff_val
+                reconstructed[i] = last_original
+
+            return reconstructed
+
+        return values
+
     def _fit_single(self, series: pd.Series, order: Tuple[int, int, int]) -> ARIMAResults:
         model = ARIMA(
             series,
@@ -380,7 +583,8 @@ class ARIMAForecaster:
 
     def _parse_order(self, raw: Optional[str]) -> Tuple[int, int, int]:
         if not raw:
-            return (2, 1, 2)
+            # Changed default from (2,1,2) to (2,0,2) because differencing is now handled explicitly
+            return (2, 0, 2)
         try:
             parts = [int(part.strip()) for part in raw.split(',')]
             if len(parts) != 3:
@@ -388,8 +592,8 @@ class ARIMAForecaster:
             p, d, q = parts
             return (max(0, p), max(0, d), max(0, q))
         except ValueError:
-            logger.warning("Invalid FORECAST_ARIMA_ORDER %s, defaulting to (2, 1, 2)", raw)
-            return (2, 1, 2)
+            logger.warning("Invalid FORECAST_ARIMA_ORDER %s, defaulting to (2, 0, 2)", raw)
+            return (2, 0, 2)
 
     def _parse_order_list(self, raw: Optional[str]) -> List[Tuple[int, int, int]]:
         if not raw:
