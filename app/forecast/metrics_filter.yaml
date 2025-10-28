@@ -2,16 +2,9 @@
 # Each rule contains a glob-friendly metric pattern and optional label selectors.
 # All patterns are evaluated using fnmatch semantics.
 metrics:
-  - pattern: seqrec_discarded_packets
-  - pattern: seqrec_passed_packets
-  - pattern: seqrec_recovery_seq_num
-  - pattern: replicate_octets_passed
-  - pattern: replicate_packets_passed
   - pattern: interface_recv_octets
   - pattern: interface_recv_packets
   - pattern: interface_send_octets
   - pattern: interface_send_packets
-  - pattern: parser_no_match_octets
-  - pattern: parser_no_match_packets
   - pattern: parser_stream_octets
   - pattern: parser_stream_packets
