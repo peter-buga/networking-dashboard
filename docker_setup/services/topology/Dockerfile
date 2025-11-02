@@ -1,25 +1,28 @@
 FROM python:3.11-slim
 
+# Install system dependencies for Graphviz
+RUN apt-get update && apt-get install -y \
+    graphviz \
+    graphviz-dev \
+    pkg-config \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Install system dependencies for Graphviz
-RUN apt-get update \
-	&& rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
+# Copy requirements and install Python packages
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the Django project
-COPY topology_service ./topology_service
+# Copy application code
+COPY app.py topology_parser.py topology_visualizer.py ./
 
-# Create directory for base files
-RUN mkdir -p /app/base_files
+# Create directory for temporary topology files
+RUN mkdir -p /tmp/topologies
 
-# Expose the port
+# Expose Flask port
 EXPOSE 8001
 
-# Run the Django development server
-ENV DJANGO_DEBUG=0
-ENV TOPOLOGY_PORT=8001
-CMD ["sh", "-lc", "python topology_service/manage.py runserver 0.0.0.0:${TOPOLOGY_PORT}"]
+# Run the Flask application
+CMD ["python", "app.py"]
