@@ -122,9 +122,9 @@ def main():
     edge1.cmd("iptables -A PREROUTING -t raw -d 10.10.11.0/24 -j DROP")
     host2.cmd("ip r add default via 10.10.11.1")
 
-    edge1.cmd("tc qdisc add dev ens2f0 root netem delay 10ms 2.5ms distribution pareto loss gemodel 50% 50% 100% 0%")
-    edge1.cmd("tc qdisc add dev ens2f1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 50% 50% 100% 0%")
-    edge2.cmd("tc qdisc add dev eno1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 50% 50% 100% 0%")
+    edge1.cmd("tc qdisc add dev ens2f0 root netem delay 10ms 2.5ms distribution pareto loss gemodel 75% 25% 100% 0%")
+    edge1.cmd("tc qdisc add dev ens2f1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 75% 25% 100% 0%")
+    edge2.cmd("tc qdisc add dev eno1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 75% 25% 100% 0%")
 
     # receiver moved to obs (172.20.0.2)
     repo_root = Path(__file__).resolve().parents[2]  # .../networking-dashboard
