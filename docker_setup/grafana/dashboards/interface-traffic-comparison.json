@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 4,
+  "id": 5,
   "links": [],
   "panels": [
     {
@@ -102,7 +102,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
@@ -200,7 +200,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
@@ -298,11 +298,11 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(interface_send_octets{hostname=\"$HostnameA\", interface_name=~\"$InterfaceA\"}[5m])) - sum(rate(interface_recv_octets{hostname=\"$HostnameB\", interface_name=~\"$InterfaceB\"}[5m]))",
+          "expr": "sum(interface_send_octets{hostname=\"$HostnameA\", interface_name=~\"$InterfaceA\"}) - sum(interface_recv_octets{hostname=\"$HostnameB\", interface_name=~\"$InterfaceB\"})",
           "legendFormat": "Octets Loss Rate (A→B)",
           "range": true,
           "refId": "A"
@@ -392,11 +392,11 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.2.1",
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(interface_send_packets{hostname=\"$HostnameA\", interface_name=~\"$InterfaceA\"}[5m])) - sum(rate(interface_recv_packets{hostname=\"$HostnameB\", interface_name=~\"$InterfaceB\"}[5m]))",
+          "expr": "sum(interface_send_packets{hostname=\"$HostnameA\", interface_name=~\"$InterfaceA\"}) - sum(interface_recv_packets{hostname=\"$HostnameB\", interface_name=~\"$InterfaceB\"})",
           "legendFormat": "Packet Loss Rate (A→B)",
           "range": true,
           "refId": "A"
@@ -505,5 +505,5 @@
   "timezone": "browser",
   "title": "Stream Compare",
   "uid": "addznqc",
-  "version": 7
+  "version": 1
 }
