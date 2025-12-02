@@ -26,14 +26,12 @@ from pathlib import Path
 └───╔═══════╗────┘       └─╔═══════╗─┘        ║ edge2 ║
     ║ edge1 ║              ║ core  ║          ╚═══════╝
     ╚═══════╝              ╚═══════╝           R2DTWO
-     R2DTWO                     |
-                                | 
-                                |
-                        ┌───────────┐
-                        |  obs-eth0 |
-                        |           |
-                        |  obs host |
-                        └───────────┘
+     R2DTWO                                        |
+        |                ┌───────────┐             |
+        |                |  obs-eth0 |             |
+        |----------------|           |-------------|
+                         |  obs host |
+                         └───────────┘
 """
 
 
@@ -74,8 +72,9 @@ def main():
     net.addLink(edge1, core, intfName1='ens2f1', intfName2='ens2f1')
     net.addLink(core, edge2, intfName1='eno0', intfName2='eno1')
     net.addLink(edge2, host2, intfName1='eno2', intfName2='ue0')
-    net.addLink(obs, core, intfName1='obs-eth0', intfName2='eno2')
-    net.addLink(obs, obsbridge, intfName1='obs-eth1', intfName2='obsbridge-eth0')
+    net.addLink(obs, edge1, intfName1='obs-eth1', intfName2='notify1')
+    net.addLink(obs, edge2, intfName1='obs-eth2', intfName2='notify2')
+    net.addLink(obs, obsbridge, intfName1='obs-eth3', intfName2='obsbridge-eth0')
 
     net.build()
 
@@ -88,43 +87,40 @@ def main():
     edge1.cmd("ip a a 192.168.2.1/24 dev eno1")
     edge1.cmd("ip a a 192.168.1.2/24 dev ens2f0")
     edge1.cmd("ip a a 192.168.0.2/24 dev ens2f1")
+    edge1.cmd("ip a a 172.20.0.3/24 dev notify1")
     core.cmd("ip a a 192.168.1.1/24 dev ens2f0")
     core.cmd("ip a a 192.168.0.1/24 dev ens2f1")
     core.cmd("ip a a 10.10.10.1/24 dev eno0")
     edge2.cmd("ip a a 10.10.10.2/24 dev eno1")
     edge2.cmd("ip a a 10.10.11.1/24 dev eno2")
+    edge2.cmd("ip a a 172.20.0.4/24 dev notify2")
     host2.cmd("ip a a 10.10.11.2/24 dev ue0")
-    core.cmd("ip a a 172.20.0.1/24 dev eno2")
-    obs.cmd("ip a a 172.20.0.2/24 dev obs-eth0")
-    obs.cmd("ip link set obs-eth1 up")
-    obs.cmd("ip addr add 10.200.0.1/30 dev obs-eth1")
-    obsbridge.cmd("ip link set obsbridge-eth0 up")
-    obsbridge.cmd("ip addr add 10.200.0.2/30 dev obsbridge-eth0")
+    obs.cmd("ip a a 172.20.0.1/24 dev obs-eth1")
+    obs.cmd("ip a a 172.20.0.2/24 dev obs-eth2")
+    obs.cmd("ip a a 10.200.0.1/30 dev obs-eth3")
+    obsbridge.cmd("ip a a 10.200.0.2/30 dev obsbridge-eth0")
 
     # routing
     host1.cmd("ip r add default via 192.168.2.1")
     edge1.cmd("ip r add 10.10.10.0/24 via 192.168.1.1 metric 1")
     edge1.cmd("ip r add 10.10.10.0/24 via 192.168.0.1 metric 10")
-    edge1.cmd("ip r add 172.20.0.0/24 via 192.168.1.1")
-    edge1.cmd("ip r add 172.20.0.0/24 via 192.168.0.1")
+    edge1.cmd("ip r add 172.20.0.0/24 via 172.20.0.1")
     edge1.cmd("ip r add 10.10.11.0/24 blackhole")
-    core.cmd("sysctl -w net.ipv4.ip_forward=1")
     edge2.cmd("ip r add 192.168.1.0/24 via 10.10.10.1")
     edge2.cmd("ip r add 192.168.0.0/24 via 10.10.10.1")
     edge2.cmd("ip r add 192.168.2.0/24 via 10.10.10.1")
-    edge2.cmd("ip r add 172.20.0.0/24 via 10.10.10.1")
-    edge2.cmd("ip r add 172.20.0.0/24 via 10.10.10.1")
-    core.cmd("ip r add 192.168.2.0/24 via 192.168.0.2")
-    core.cmd("ip r add 192.168.2.0/24 via 192.168.1.2")
-    obs.cmd("ip r add default via 172.20.0.1")
+    edge2.cmd("ip r add 172.20.0.0/24 via 172.20.0.2")
+    obs.cmd("ip r add 10.10.10.0/24 via 172.20.0.1")
+    obs.cmd("ip r add 192.168.0.0/24 via 172.20.0.2")
+    obs.cmd("ip r add 10.200.0.0/30 via 10.200.0.2")
 
     # drop false positive ICMP errors
     edge1.cmd("iptables -A PREROUTING -t raw -d 10.10.11.0/24 -j DROP")
     host2.cmd("ip r add default via 10.10.11.1")
 
-    edge1.cmd("tc qdisc add dev ens2f0 root netem delay 10ms 2.5ms distribution pareto loss gemodel 75% 25% 100% 0%")
-    edge1.cmd("tc qdisc add dev ens2f1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 75% 25% 100% 0%")
-    edge2.cmd("tc qdisc add dev eno1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 75% 25% 100% 0%")
+    edge1.cmd("tc qdisc add dev ens2f0 root netem delay 10ms 2.5ms distribution pareto loss gemodel 70% 40% 100% 0%")
+    edge1.cmd("tc qdisc add dev ens2f1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 70% 40% 100% 0%")
+    edge2.cmd("tc qdisc add dev eno1 root netem delay 10ms 2.5ms distribution pareto loss gemodel 70% 40% 100% 0%")
 
     # receiver moved to obs (172.20.0.2)
     repo_root = Path(__file__).resolve().parents[2]  # .../networking-dashboard
